@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Read", "Glob", "Grep",
+      "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)",
+      "Bash(git checkout:*)", "Bash(git switch:*)",
+      "Bash(gh pr view:*)", "Bash(gh pr list:*)", "Bash(gh pr diff:*)", "Bash(gh pr status:*)",
+      "Bash(terraform init:*)", "Bash(terraform fmt:*)", "Bash(terraform validate:*)",
+      "Bash(terraform plan:*)", "Bash(terraform output:*)", "Bash(terraform state list:*)",
+      "Bash(az login:*)", "Bash(az account show:*)", "Bash(az ad app list:*)", "Bash(az ad group list:*)",
+      "Bash(deck gateway validate:*)", "Bash(deck gateway diff:*)", "Bash(deck gateway ping:*)", "Bash(deck gateway dump:*)",
+      "Bash(docker compose ps:*)", "Bash(docker compose logs:*)", "Bash(docker compose up:*)",
+      "Bash(bun test:*)", "Bash(bun run:*)", "Bash(bun install:*)"
+    ],
+    "ask": [
+      "Edit", "Write",
+      "Bash(git add:*)", "Bash(git commit:*)", "Bash(git push:*)",
+      "Bash(gh pr create:*)", "Bash(gh pr merge:*)",
+      "Bash(terraform apply:*)", "Bash(terraform destroy:*)",
+      "Bash(az ad app create:*)", "Bash(az ad app credential*)", "Bash(az ad group member*)", "Bash(az role assignment*)",
+      "Bash(deck gateway sync:*)",
+      "Bash(docker compose down:*)"
+    ]
+  }
+}

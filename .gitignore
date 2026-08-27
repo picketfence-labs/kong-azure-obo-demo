@@ -1,0 +1,27 @@
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+
+# Node / Bun
+node_modules/
+.bun/
+bun.lockb
+
+# Next.js
+.next/
+out/
+
+# OS / editor
+.DS_Store
+.vscode/
