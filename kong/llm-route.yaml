@@ -29,6 +29,11 @@ services:
                   model:
                     provider: azure
                     name: "${{ env "DECK_AZURE_OPENAI_DEPLOYMENT_NAME" }}"
+                    # エージェント側はAzureのデプロイ名を一切知らず、常にこの固定値のみを
+                    # "model"としてリクエストに含める（design-brief 2節、検証方法9番目の要件）。
+                    # kong-ee/kong/llm/plugin/shared-filters/normalize-request.luaの実装を確認済み:
+                    # request.modelが model.name と一致しなくてもmodel_aliasと一致すれば通る。
+                    model_alias: kong-demo-llm
                     options:
                       azure_instance: "${{ env "DECK_AZURE_OPENAI_INSTANCE_NAME" }}"
                       azure_deployment_id: "${{ env "DECK_AZURE_OPENAI_DEPLOYMENT_NAME" }}"

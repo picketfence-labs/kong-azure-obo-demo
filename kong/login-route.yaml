@@ -1,0 +1,64 @@
+# Chat UI/エージェント アクセス用Route（docs/design-brief.md 3節「Kong側のプラグインチェーン」1番目）。
+# ブラウザ→Kong→Next.jsの経路。認可コードフロー＋セッションでログイン可否のみを扱い、OBOはしない
+# （OBOはMCPエンドポイント用Route＝kong/mcp-route.yamlの責務）。
+#
+# ログイン可否そのものはEntra ID Enterprise Applicationの「割り当てが必要」設定＋
+# 「AIエージェント」用Security Groupの割り当てのみで行う（未割当ユーザーは認可コード発行段階で
+# Entra ID自体が拒否するため、Kong側にACL相当の追加実装は不要。design-brief 3節）。
+#
+# scopesに"api://<ミドル層App client_id>/access_as_user"を含めることで、ここで発行される
+# アクセストークンのaudienceがミドル層App自身になる。このトークンをupstream_access_token_header
+# （デフォルト"authorization:bearer"）でNext.jsへAuthorizationヘッダーとして転送し、
+# Next.jsのエージェントがMCPエンドポイント用Routeを呼ぶ際に同じBearerトークンをそのまま
+# 再提示することで、そちらのopenid-connectのtoken_exchange（jwt_bearer、
+# subject_token_issuers.conditions.has_audience=ミドル層App client_id）にassertionとして渡る
+# （kong/mcp-route.yaml参照）。この繋がり自体はまだ実機未検証（docs/troubleshooting-log.md参照）。
+_format_version: "3.0"
+services:
+  - name: chat-ui
+    protocol: http
+    host: chat-ui
+    port: 3000
+    routes:
+      - name: chat-ui
+        protocols:
+          - http
+        paths:
+          - /
+        strip_path: false
+        plugins:
+          - name: openid-connect
+            config:
+              issuer: "${{ env "DECK_ENTRA_ISSUER" }}"
+              client_id:
+                - "${{ env "DECK_MIDDLE_TIER_CLIENT_ID" }}"
+              client_secret:
+                - "${{ env "DECK_MIDDLE_TIER_CLIENT_SECRET" }}"
+              auth_methods:
+                - authorization_code
+                - session
+              scopes:
+                - openid
+                - profile
+                - "api://${{ env "DECK_MIDDLE_TIER_CLIENT_ID" }}/access_as_user"
+              # terraform/variables.tfのkong_gateway_login_redirect_uri/post_logout_redirect_uriと一致させる
+              redirect_uri:
+                - "http://localhost:8000/login/callback"
+              logout_redirect_uri:
+                - "http://localhost:8000/logout/callback"
+              # logout_query_arg/logout_post_arg/logout_uri_suffixのいずれも設定しないと
+              # ログアウトの契機が無くなるため、Chat UI側のログアウトボタンはPOST /?logoutで送信する想定
+              # （logout_methodsのデフォルトはPOST/DELETEなのでこのままでよい）。
+              logout_query_arg: logout
+              session_secret: "${{ env "DECK_SESSION_SECRET" }}"
+              # ログイン後、Chat UI上部に表示する「自分のトークン情報の一部」用（design-brief 2節）。
+              # id_token/userinfoのクレームをNext.jsへヘッダーとして転送する。
+              # 要検証: Entra IDが実際にemail/preferred_usernameクレームをid_tokenまたはuserinfoの
+              # どちらに含めるか（docs/troubleshooting-log.md参照）。
+              upstream_headers:
+                - header: X-User-Name
+                  path:
+                    - name
+                - header: X-User-Email
+                  path:
+                    - preferred_username
