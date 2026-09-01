@@ -42,6 +42,13 @@ resource "azuread_application" "middle_tier" {
       type = "Scope"
     }
   }
+
+  # identifier_urisはazuread_application_identifier_uriリソース側で管理する。
+  # ここで無視しないと、azuread_applicationが「configに書かれていない＝空にすべき」と誤認し、
+  # 毎planでidentifier_uriを削除しようとする（両リソースが同じ属性を取り合う既知の競合）。
+  lifecycle {
+    ignore_changes = [identifier_uris]
+  }
 }
 
 # Application ID URI（api://<client_id>）は自身のclient_id確定後にしか設定できないため別リソースにする
@@ -90,6 +97,11 @@ resource "azuread_application" "downstream_api" {
       user_consent_description   = "Kong Gatewayがあなたに代わって顧客情報APIへアクセスすることを許可します"
       user_consent_display_name  = "顧客情報APIへアクセス"
     }
+  }
+
+  # 理由はmiddle_tier側と同じ（azuread_application_identifier_uriリソースとの属性競合を避ける）。
+  lifecycle {
+    ignore_changes = [identifier_uris]
   }
 }
 
