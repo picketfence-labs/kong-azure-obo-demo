@@ -41,6 +41,9 @@ services:
                       # 実際にdeck syncする際、Azure OpenAI側で有効なapi-versionか要確認
                       # （docs/troubleshooting-log.md参照）。
                       azure_api_version: "2024-10-21"
-              logging:
-                log_statistics: true
-                log_payloads: false
+                  # 要検証で判明: loggingはconfig直下ではなくtargets[]要素の中に置く必要がある
+                  # （kong-ee/kong/plugins/ai-proxy-advanced/schema.lua:270、実機のスキーマエラーで発覚。
+                  # docs/troubleshooting-log.md参照）。
+                  logging:
+                    log_statistics: true
+                    log_payloads: false

@@ -57,7 +57,12 @@ services:
                     顧客を氏名（部分一致）・性別・都道府県のAND条件で検索し、
                     顧客ID・氏名・性別・都道府県のサマリを返す。
                   method: GET
-                  path: /customers
+                  # 相対パス（先頭"/"無し）にする。ai-mcp-proxyの自己リクエスト(tools.lua内send_http_call)は
+                  # Kong自身のRouterを再度通過するため、絶対パスだと元Routeのパスプレフィックスが
+                  # 無視され別Route（chat-uiのキャッチオール）に誤って着地してしまう
+                  # （docs/troubleshooting-log.md参照）。相対パスなら元Route自身に戻り、
+                  # openid-connectが書き換え済みのAuthorizationヘッダーで正しく再認証される。
+                  path: customers
                   parameters:
                     - name: name
                       in: query
@@ -91,7 +96,7 @@ services:
                     メールアドレス等）を取得する。事前にcustomer_inquiryで顧客IDを
                     取得している必要がある。
                   method: GET
-                  path: "/customers/{id}"
+                  path: "customers/{id}"
                   parameters:
                     - name: id
                       in: path
