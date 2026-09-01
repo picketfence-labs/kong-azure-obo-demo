@@ -28,3 +28,6 @@ out/
 # OS / editor
 .DS_Store
 .vscode/
+
+# Playwright MCPによる手動E2E検証時の副産物（スナップショット・コンソールログ）
+.playwright-mcp/

@@ -105,7 +105,8 @@ Terraform（`terraform/`配下）は、クライアントシークレット等�
    export DECK_AZURE_OPENAI_API_KEY=$(terraform output -raw azure_openai_api_key)
    export DECK_AZURE_OPENAI_DEPLOYMENT_NAME=$(terraform output -raw azure_openai_deployment_name)
    export DECK_AZURE_OPENAI_INSTANCE_NAME=kong-obo-demo-openai
-   # Kongのセッションcookie署名用シークレット（decK専用の値、Terraform outputではない）
+   # Kongのセッションcookie署名用シークレット（decK専用の値、Terraform outputではない）。
+   # 再syncのたびに値を変えると既存セッションが無効化されるため、.env等に一度保存して使い回すこと
    export DECK_SESSION_SECRET=$(openssl rand -base64 32)
    cd ..
    ```

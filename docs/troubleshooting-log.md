@@ -64,14 +64,13 @@
 - **原因**: decK側の仕様（`getPrefixedEnvVar`）
 - **対処・回避方法**: `kong-mcp-testbed`の実例（`DECK_AUTH0_ISSUER`等）でも同じ命名規則だったことを確認し、本リポジトリでも踏襲した
 
-## 2026-09-01 未検証のまま実装した値（`deck gateway sync`実行前に要確認）
-`kong/`配下のdecK state fileは、Kong/Azure OpenAIの現物環境に対してまだ一度も`deck gateway sync`していない（Kong Enterpriseライセンスが必要な操作のため、実際の起動・同期は利用者確認後に行う）。以下は`kong-ee`のスキーマ定義から妥当と判断したが、実機での動作は未確認:
-- `openid-connect`の`subject_token_issuers[].issuer`に設定した`https://login.microsoftonline.com/{tenant}/v2.0`形式が、実際にEntra IDが発行するBearerトークンの`iss`クレームと一致するか
-- `ai-proxy-advanced`の`model.options.azure_api_version`に設定した`2024-10-21`が、`terraform/azure_openai.tf`でデプロイした`gpt-5-mini`（2026-09時点の新しいモデル）に対して有効なAPIバージョンか
-- `deck gateway validate`/`deck gateway diff`自体を、対象の`kong/kong-gateway-dev:pr-21082-ubuntu`イメージに対してまだ実行できていない（Docker Compose起動にはKong Enterpriseライセンスが必要なため、利用者確認後の次ステップとする）
-- `kong/login-route.yaml`の`upstream_headers`（`path: [name]`/`path: [preferred_username]`）が、Entra IDの実際のid_token/userinfoレスポンスのクレーム名と一致するか（`preferred_username`ではなく`email`/`upn`にすべき可能性がある）
-- Route 1（`login-route.yaml`）でセッションcookieにより再認証した場合でも、`upstream_access_token_header`（デフォルト`authorization:bearer`）が最初のログイン時と同じアクセストークンをNext.jsへ転送し続けるか（`openid-connect`のセッションストレージ実装依存。セッションが有効な間、Next.js側の`/api/chat`がKongのMCP Routeへ再提示できるトークンを毎回受け取れることが前提）
-- `services/chat-ui/src/app/api/chat/route.ts`の`createMCPClient`が`transport.type: "http"`（Streamable HTTPトランスポート）で`ai-mcp-proxy`（`conversion-listener`モード）に接続できるか。`ai-mcp-proxy`側の実際のトランスポート実装は未確認
+## 2026-09-01 【解決・実機確認済み】未検証のまま実装していた値（`deck gateway sync`実行前の懸念点）
+以下は実装当初、`kong-ee`のスキーマ定義から妥当と判断したが実機未確認だった項目。利用者からKong Enterpriseライセンスの提供を受け、実際に`docker compose up`→`deck gateway sync`→Playwrightによる実ブラウザ操作で全て確認できた:
+- ✅ `openid-connect`の`subject_token_issuers[].issuer`（`https://login.microsoftonline.com/{tenant}/v2.0`）は実際のBearerトークンの`iss`クレームと一致し、OBOトークン交換が成功した
+- ✅ `ai-proxy-advanced`の`model.options.azure_api_version`（`2024-10-21`）は`gpt-5-mini`デプロイに対して有効で、実際にAzure OpenAIから応答を得られた
+- ✅ `kong/login-route.yaml`の`upstream_headers`（`path: [name]`/`path: [preferred_username]`）はEntra IDの実際のid_tokenクレーム名と一致し、画面上部に正しくユーザー名・メールが表示された
+- ✅ セッションcookieによる再認証時も`upstream_access_token_header`が正しくアクセストークンをNext.jsへ転送し続けることを確認（複数回のチャット送信で毎回MCP Routeへの再提示に成功）
+- ✅ `createMCPClient`の`transport.type: "http"`（Streamable HTTPトランスポート）で`ai-mcp-proxy`（`conversion-listener`モード）に接続できることを確認（`initialize`→`notifications/initialized`→`tools/list`→`tools/call`の一連のJSON-RPCが正常に機能）
 
 ## 2026-09-01 openid-connect: セッション管理は`auth_methods`に明示的に`session`を含めないと有効にならない
 - **何を期待していたか**: `session_secret`等の`session_*`系フィールドを設定しさえすれば、`authorization_code`ログイン後のセッションcookie発行・検証は自動的に有効になると想定していた
@@ -84,6 +83,38 @@
 - **実際どうだったか**: `kong-ee/kong/llm/plugin/shared-filters/normalize-request.lua`（187-206行）を確認すると、クライアントの`model`が空でも`config.targets[].model.name`とも`model_alias`とも一致しない非空文字列の場合`400 "cannot use own model - must be: <model_t.name>"`を返す。一方、Vercel AI SDKの`@ai-sdk/openai`は`.chat(modelId)`実行時に必ず具体的な文字列を`model`として送信する仕様のため、「何も送らない」選択肢はSDK都合で取れなかった
 - **原因**: `ai-proxy-advanced`はクライアントが誤って別モデルを指定していないかを検証する仕様（`kong-ee/kong/llm/schemas/init.lua`213-216行の`model_alias`フィールドが、この検証を回避しつつ実際のモデル名を隠すための正規の抜け道として用意されている）
 - **対処・回避方法**: `kong/llm-route.yaml`の`model.model_alias`に固定値`kong-demo-llm`を設定し、エージェント側は常にこの値のみを送信するよう実装（`services/chat-ui/src/app/api/chat/route.ts`）。これによりAzureのデプロイ名等はエージェント側から完全に隠蔽されたまま要件を満たせる
+
+## 2026-09-01 ai-proxy-advanced: `config.logging`はtargets[]要素の中に置く必要がある（実機`deck gateway validate`で発覚）
+- **何を期待していたか**: `kong-ee/spec-ee`の一部抜粋から、`logging`（`log_statistics`/`log_payloads`）は`config`直下のフィールドだと判断していた
+- **実際どうだったか**: 実際のKong（`kong/kong-gateway-dev:pr-21082-ubuntu`）に対して`deck gateway validate`を実行したところ`schema violation (config.logging: unknown field)`で失敗
+- **原因**: `kong-ee/kong/plugins/ai-proxy-advanced/schema.lua:270`（`target.logging.log_payloads`参照）で確認した通り、`logging`は`config.targets[]`の各要素の中のフィールドだった（`config`直下ではない）
+- **対処・回避方法**: `kong/llm-route.yaml`の`logging`を`targets[0]`の中へ移動。修正後`deck gateway validate`成功
+
+## 2026-09-01 Docker Compose起動・実機`deck gateway sync`・E2E動作確認（design-brief 5節の検証方法）
+利用者からKong Enterpriseライセンス（`.env`の`KONG_LICENSE_DATA`）の提供を受け、`docker compose up -d`→`deck gateway sync`→Playwright（実ブラウザ操作）による実地検証を実施。
+
+- **ライセンス状態**: Kongログに`Your license is expired. You have 18 days left in the renewal grace period.`と出力される。grace period中のためEnterprise機能（openid-connect/ai-mcp-proxy/ai-proxy-advanced）は問題なく動作した（実際に以下の検証で確認）。18日以内に本番相当の検証を行う場合は要更新
+- **確認できたこと（design-brief 5節テストケース）**:
+  - ✅ AIエージェント未割当ユーザー（`demo-no-agent-access`）: Entra IDが`AADSTS50105`でログイン自体を拒否（Kong側の実装は無関係、想定通り）
+  - ✅ 割当済み2ユーザーのログイン・画面上部のユーザー名/メール表示: `upstream_headers`（`path: [name]`/`path: [preferred_username]`）が実際のid_tokenクレームと一致し正しく表示された（未検証項目としていた懸念は解消）
+  - ✅ ログアウト: ログアウトボタン→Entra IDのサインアウト画面→再度ログインが必要になることを確認（セッションが実際にクリアされたことの間接証跡）
+  - ✅ ACL: `demo-inquiry-only`ユーザーはMCPの`tools/list`に`customer_inquiry`のみ表示され、`customer_details`を直接`tools/call`すると**403 Forbidden**。`demo-both-apis`ユーザーは両方のToolが`tools/list`に表示され、`customer_details`も許可（ACL 403にならない）。OBOトークン交換＋`groups`クレームによるACL評価が実機で正しく機能することを確認
+  - ✅ `ai-proxy-advanced`経由のLLM呼び出し自体は成功（Chat UIから自然文で応答が返る）。エージェント側は`model: "kong-demo-llm"`固定値のみ送信し、Azure固有設定は一切持たない
+- **当初未解決だった問題2件（下記2エントリ）は、同セッション内でいずれも原因特定・修正・再検証まで完了した**
+
+## 2026-09-01 【解決済み】Kong: `openid-connect`のログイン/ログアウトコールバックが`login_action: upstream`のためNext.js側に404で着地する
+- **何を期待していたか**: Entra IDからの`/login/callback`・`/logout/callback`リダイレクト後、Kongが認証完了を検知してブラウザを`/`等の実在パスへ送り届けてくれると想定していた
+- **実際どうだったか**: `openid-connect`の`login_action`はデフォルト`upstream`（design-brief上「認可コードフロー」としか書いておらず値自体は未指定だったため既定値を使用）。このモードでは認証完了後もコールバックの**リクエストパス自体（`/login/callback`等）がそのままNext.jsへ転送される**。Next.js側に該当パスの実装が無いため実際に404が表示された（ただしセッションcookie自体は正しく発行されており、その後`/`へ手動遷移すればログイン状態は維持されていることを確認した＝機能的には成功、UXの見た目が悪いだけ）
+- **原因**: `login_action: upstream`の仕様上の挙動（`kong-ee/kong/plugins/openid-connect/schema.lua:2073-2083`）
+- **対処・回避方法**: `services/chat-ui/src/app/login/callback/route.ts`・`.../logout/callback/route.ts`を追加し、`/`へ303リダイレクトするだけの薄いRoute Handlerを実装。実機（Playwright操作）で再検証し、ログイン・ログアウトとも404を経由せず`/`へシームレスに遷移することを確認した
+
+## 2026-09-01 【解決済み】ai-mcp-proxy(conversion-listener)のtools/callが実データを返さない（isError:false・content空）
+- **何を期待していたか**: ACLが許可された`tools/call`（`customer_inquiry`/`customer_details`）は、demo-apiの実データをMCPレスポンスのcontentに含めて返すと想定していた
+- **実際どうだったか**: ACL評価自体は完全に正しく動作（403/200の出し分けは設計通り）。しかしACLが許可されるケースでも、レスポンスは常に`{"isError":false,"content":[{"type":"text","text":""}]}`（空）。Kongのアクセスログを見ると、`ai-mcp-proxy`がツール実行のため内部的に発行する自己完結HTTPリクエスト（`kong/plugins/ai-mcp-proxy/tools.lua`の`send_http_call`、Kong専用unixソケット`KONG_AI_MCP_SOCK`経由）が、意図した`demo-api`への到達ではなく**302（空ボディ）**を返している
+- **原因（調査済み・確定）**: `send_http_call`はKongの共有nginx server blockを再度介する自己リクエストであり（`kong-ee/kong/templates/nginx_kong.lua:153`、`ai_mcp_listener_enabled`のunixソケットは公開TCPポートと**同一**server block内）、Kongの通常のRoute/Serviceルーターを再度通過する。`kong/mcp-route.yaml`のTool定義で`path: /customers`のように**絶対パス**を指定すると、`resolve_final_path`（`kong-ee/kong/plugins/ai-mcp-proxy/tools.lua:72-110`）が元のRouteのパス（`/mcp/customers`）を無視して`/customers`のみで自己リクエストを組み立てる。この結果、自己リクエストは`mcp-customers` Routeにマッチせず、`paths: ["/"]`で無関係にキャッチオールしている`kong/login-route.yaml`の`chat-ui` Routeに落ち、その`openid-connect`（`auth_methods: [authorization_code, session]`）が未認証と判定し302リダイレクトを返す。`send_http_call`は`status >= 400`のみエラー扱いのため302は「成功」として処理され、空ボディがそのままcontentになる（`tools.lua`の`convert_resp_as_tool_call_result`はstatusを見ずcontentへ素通しする）
+- **検討した対処案とセキュリティ上の懸念**: 単純に「`/customers`にマッチする無認証Routeを追加する」対処は、この自己リクエスト用unixソケットが公開TCPポート（8000）と**同一のnginx server block・同一Routerテーブル**を共有するため、外部から`Host: demo-api`ヘッダーを偽装した通常のTCPリクエストでも同じRouteにマッチしてしまい、OIDC/OBO/ACLを完全にバイパスする経路になる懸念があった。この案は採用せず、より安全な下記の対処を採用した
+- **対処・回避方法（採用）**: Tool定義の`path`を**絶対パス（`/customers`）から相対パス（`customers`）に変更**。`resolve_final_path`は相対パスの場合、元Routeのパス（`/mcp/customers`）と結合するため、自己リクエストは`mcp-customers` Route自身に正しく着地する。この時、`openid-connect`のOBOトークン交換（`token_exchange`）が書き込んだ`Authorization: Bearer <交換後トークン>`ヘッダー（`upstream_access_token_header`デフォルト`authorization:bearer`によりKongが`ngx.req.set_header`でライブのリクエストオブジェクトを直接書き換え済み、かつ`ai-mcp-proxy`の`forward_client_headers`は既定`true`）がそのまま自己リクエストにも引き継がれるため、Routeへ再度着地した際の認証は「バイパス」ではなく、有効な（実際にOBO交換済みで対象APIのaudienceを持つ）トークンによる**正規の再認証**として通る。新規Routeの追加は不要で、認証バイパスの懸念も生じない
+- **検証結果**: 修正後`deck gateway sync`し、実際のトークンで`tools/call`を直接叩いて確認: `customer_inquiry`（都道府県のみ／都道府県+性別のAND条件）・`customer_details`とも実データが返ることを確認。ACL（inquiry_onlyユーザーの`customer_details`が403のまま）も修正前と変わらず正しく機能。Chat UI経由でも「東京都在住の女性を検索して、見つかった顧客の詳細情報も教えて」という自然文プロンプトに対し、LLMが`customer_inquiry`→`customer_details`の順でToolを実行し、demo-apiの実データ（氏名・年齢・マイナンバー・住所等）と完全に一致する正確な回答を生成することを確認した（design-brief 5節の複数テストケースがこれで実地確認できた）
 
 ## 2026-09-01 デモAPI: テストデータ生成方法の記録
 CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記録。`services/demo-api/src/data.ts`の100人分の顧客データ（マイナンバーを模した12桁の値を含む）は、固定シード（42）のmulberry32擬似乱数生成器のみから機械的に組み立てた完全な架空データ。実在の人物・実在の番号を一切参照していない。氏名は姓・名それぞれ10種の一般的な単語からの組み合わせ、マイナンバー相当値は12桁の乱数文字列（チェックデジット等の実仕様は再現していない）。
