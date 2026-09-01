@@ -90,7 +90,7 @@ Terraform（`terraform/`配下）は、クライアントシークレット等�
    - `auth_check` outputに想定通りのテナントID/サブスクリプションIDが出れば成功（この段階ではリソースは何も作成されない）
 
 ### Kong Gateway（decK宣言的設定）
-`kong/`配下がRoute別のdecK state file（`mcp-route.yaml`: OBO+ACL、`llm-route.yaml`: Azure OpenAI抽象化）。ログイン用Route（Chat UI実装後に追加予定）を除き現時点で2ファイル。秘匿値は平文で書かず、decKの環境変数テンプレート`${{ env "DECK_XXX" }}`（`DECK_`プレフィックス必須）で参照する。
+`kong/`配下がRoute別のdecK state file（`login-route.yaml`: Chat UIログイン、`mcp-route.yaml`: OBO+ACL、`llm-route.yaml`: Azure OpenAI抽象化）。秘匿値は平文で書かず、decKの環境変数テンプレート`${{ env "DECK_XXX" }}`（`DECK_`プレフィックス必須）で参照する。
 
 1. Docker Composeを起動: `cp .env.example .env` を編集の上 `docker compose up -d`（Kong Enterpriseライセンスが必要）
 2. Terraform outputから必要な値を環境変数へ展開:
@@ -105,12 +105,30 @@ Terraform（`terraform/`配下）は、クライアントシークレット等�
    export DECK_AZURE_OPENAI_API_KEY=$(terraform output -raw azure_openai_api_key)
    export DECK_AZURE_OPENAI_DEPLOYMENT_NAME=$(terraform output -raw azure_openai_deployment_name)
    export DECK_AZURE_OPENAI_INSTANCE_NAME=kong-obo-demo-openai
+   # Kongのセッションcookie署名用シークレット（decK専用の値、Terraform outputではない）
+   export DECK_SESSION_SECRET=$(openssl rand -base64 32)
    cd ..
    ```
-3. ローカルでの構文・スキーマ検証（Kongへの接続不要）: `deck file validate kong/mcp-route.yaml kong/llm-route.yaml`
-4. 実際のKongへ反映: `deck gateway sync kong/mcp-route.yaml kong/llm-route.yaml`
+3. ローカルでの構文・スキーマ検証（Kongへの接続不要）: `deck file validate kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`
+4. 実際のKongへ反映: `deck gateway sync kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`
 
 ネットワーク分離の考え方（MCP/LLM Routeをブラウザから到達不可にする方式と、その実際の限界）は[ADR-0002](./docs/decisions/0002-mcp-llm-route-network-isolation.md)を参照。
+
+### Chat UI/エージェント
+
+`services/chat-ui`（Next.js App Router + Vercel AI SDK）。design-brief 3節の通り、Auth.js等のOAuthクライアント実装は持たず、`kong/login-route.yaml`のopenid-connectプラグインが認可コードフロー・セッション管理・ログアウトを全て担う。Next.js側はKongが`upstream_headers`/`upstream_access_token_header`で転送するヘッダーを信頼するだけ:
+
+- `X-User-Name`/`X-User-Email`: ログイン中ユーザーの表示用（画面上部のヘッダーバー）
+- `Authorization: Bearer <access_token>`: Route 1のログインで取得したアクセストークン（audienceはミドル層App自身）。`src/app/api/chat/route.ts`がこれをそのままMCPエンドポイント用Route（`kong/mcp-route.yaml`）へのBearerトークンとして再提示し、そちらのOBO(`token_exchange.grant_type=jwt_bearer`)のassertionとして使われる
+
+LLM呼び出しは`kong/llm-route.yaml`の`ai-proxy-advanced`（Route `/llm`）を、Azure固有の設定を一切持たないOpenAI互換クライアントとして叩く。`model`には固定値`kong-demo-llm`（`llm-route.yaml`の`model_alias`と一致）を送るだけで、実際のAzureデプロイ名・APIバージョン・エンドポイントはエージェント側から完全に隠蔽される（design-brief 検証方法9番目の要件）。
+
+ローカル起動（Docker Composeを使わない場合）:
+```bash
+cd services/chat-ui
+bun install
+bun run dev   # http://localhost:3000 単体では認証ヘッダーが無いため、Kong経由（http://localhost:8000）でのアクセスが前提
+```
 
 ## 知見の記録
 - 設計判断（選択肢・判断基準・想定と実際の差分）: [docs/decisions/](./docs/decisions/)（1判断＝1ファイル、`TEMPLATE.md`参照）
