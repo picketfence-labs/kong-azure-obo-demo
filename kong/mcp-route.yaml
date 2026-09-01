@@ -1,0 +1,107 @@
+# MCPエンドポイント用Route（docs/design-brief.md 3節「Kong側のプラグインチェーン」2番目）。
+# Next.jsエージェント（サーバーサイド）のみが呼び出す経路。ブラウザからは到達させない
+# 想定だが、Kongの実装上は完全には分離できないため docs/decisions/0002 を参照。
+#
+# openid-connect: token_exchange(grant_type=jwt_bearer, provider=microsoft)でEntra ID OBOを実行。
+# ai-mcp-proxy: 自己完結の conversion-listener モード（将来Tool追加時にlistener+conversion-onlyへ移行、design-brief 2節「将来」参照）。
+# acl_attribute_typeとaccess_token_claim_fieldはconversion-listenerモードでは同一プラグインインスタンスに設定してよい
+# （conversion-onlyモードのみ、listener側プラグインに分離する必要がある。kong-ee/kong/plugins/ai-mcp-proxy/schema.lua参照）。
+_format_version: "3.0"
+services:
+  - name: customer-api
+    protocol: http
+    host: demo-api
+    port: 3001
+    routes:
+      - name: mcp-customers
+        protocols:
+          - http
+        paths:
+          - /mcp/customers
+        plugins:
+          - name: openid-connect
+            config:
+              issuer: "${{ env "DECK_ENTRA_ISSUER" }}"
+              client_id:
+                - "${{ env "DECK_MIDDLE_TIER_CLIENT_ID" }}"
+              client_secret:
+                - "${{ env "DECK_MIDDLE_TIER_CLIENT_SECRET" }}"
+              auth_methods:
+                - bearer
+              scopes:
+                - "${{ env "DECK_DOWNSTREAM_API_APPLICATION_ID_URI" }}/.default"
+              token_exchange:
+                grant_type: jwt_bearer
+                provider: microsoft
+                # map_identities_from はデフォルト(exchanged_tokens)のまま
+                # （AI MCP ProxyのACLは交換後トークンのgroupsクレームを見るため。design-brief 3節参照）
+                subject_token_issuers:
+                  - issuer: "${{ env "DECK_ENTRA_ISSUER" }}"
+                    conditions:
+                      has_audience:
+                        - "${{ env "DECK_MIDDLE_TIER_CLIENT_ID" }}"
+
+          - name: ai-mcp-proxy
+            config:
+              mode: conversion-listener
+              acl_attribute_type: oauth_access_token
+              # Entra IDのgroupsクレーム（グループObject IDのGUID配列）をACL評価の主体にする
+              access_token_claim_field: groups
+              logging:
+                log_statistics: true
+                log_payloads: false
+                log_audits: true
+              tools:
+                - name: customer_inquiry
+                  description: >-
+                    顧客を氏名（部分一致）・性別・都道府県のAND条件で検索し、
+                    顧客ID・氏名・性別・都道府県のサマリを返す。
+                  method: GET
+                  path: /customers
+                  parameters:
+                    - name: name
+                      in: query
+                      required: false
+                      description: 氏名の部分一致検索文字列
+                      schema:
+                        type: string
+                    - name: gender
+                      in: query
+                      required: false
+                      description: "'male' または 'female'"
+                      schema:
+                        type: string
+                        enum: [male, female]
+                    - name: prefecture
+                      in: query
+                      required: false
+                      description: 都道府県（完全一致）
+                      schema:
+                        type: string
+                  annotations:
+                    title: Customer Inquiry
+                    read_only_hint: true
+                  acl:
+                    allow:
+                      - "${{ env "DECK_GROUP_API_CUSTOMER_INQUIRY_OBJECT_ID" }}"
+
+                - name: customer_details
+                  description: >-
+                    顧客ID（UUID）で顧客のフル項目（年齢・マイナンバー・住所・電話番号・
+                    メールアドレス等）を取得する。事前にcustomer_inquiryで顧客IDを
+                    取得している必要がある。
+                  method: GET
+                  path: "/customers/{id}"
+                  parameters:
+                    - name: id
+                      in: path
+                      required: true
+                      description: 顧客ID（UUID）
+                      schema:
+                        type: string
+                  annotations:
+                    title: Customer Details
+                    read_only_hint: true
+                  acl:
+                    allow:
+                      - "${{ env "DECK_GROUP_API_CUSTOMER_DETAILS_OBJECT_ID" }}"

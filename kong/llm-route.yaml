@@ -1,0 +1,41 @@
+# LLM（Azure OpenAI）アクセス用Route（docs/design-brief.md 3節「Kong側のプラグインチェーン」3番目）。
+# Next.jsエージェント（サーバーサイド）のみが呼び出す経路。追加認証は掛けず、
+# Docker Compose上のネットワーク到達性で保護する想定（実際の制約はdocs/decisions/0002参照）。
+#
+# ai-proxy-advancedがAzure OpenAIの認証情報・エンドポイント詳細を保持し、
+# エージェント側には抽象化されたエンドポイントを提供する（design-brief 3節）。
+# Serviceのhost/portはai-proxy-advancedが実際の宛先を上書きするため使われないプレースホルダ
+# （kong-ee/spec-ee/03-plugins/44-ai-proxy-advanced/配下のテストも同様にplaceholderを使う）。
+_format_version: "3.0"
+services:
+  - name: azure-openai
+    protocol: https
+    host: localhost
+    port: 443
+    routes:
+      - name: llm
+        protocols:
+          - http
+        paths:
+          - /llm
+        plugins:
+          - name: ai-proxy-advanced
+            config:
+              targets:
+                - route_type: llm/v1/chat
+                  auth:
+                    header_name: api-key
+                    header_value: "${{ env "DECK_AZURE_OPENAI_API_KEY" }}"
+                  model:
+                    provider: azure
+                    name: "${{ env "DECK_AZURE_OPENAI_DEPLOYMENT_NAME" }}"
+                    options:
+                      azure_instance: "${{ env "DECK_AZURE_OPENAI_INSTANCE_NAME" }}"
+                      azure_deployment_id: "${{ env "DECK_AZURE_OPENAI_DEPLOYMENT_NAME" }}"
+                      # 要検証: terraform/azure_openai.tf適用時点(2026-08)のAPIバージョン。
+                      # 実際にdeck syncする際、Azure OpenAI側で有効なapi-versionか要確認
+                      # （docs/troubleshooting-log.md参照）。
+                      azure_api_version: "2024-10-21"
+              logging:
+                log_statistics: true
+                log_payloads: false
