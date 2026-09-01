@@ -15,6 +15,7 @@
       "Bash(bun test:*)", "Bash(bun run:*)", "Bash(bun install:*)"
     ],
     "ask": [
+      "Edit(.claude/settings.json)", "Write(.claude/settings.json)",
       "Bash(git push:*)",
       "Bash(gh pr create:*)", "Bash(gh pr merge:*)",
       "Bash(terraform apply:*)", "Bash(terraform destroy:*)",

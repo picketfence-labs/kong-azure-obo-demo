@@ -12,6 +12,7 @@ Kong Gateway 3.16（ベータ）のOpenID Connectプラグイン新機能「Entr
 - `main`ブランチはbranch protection有効化を試みる（PR必須、`enforce_admins: true`）。ただし本リポジトリはprivate。**private + GitHub Freeプランではbranch protection APIが403で有効化できない既知の制約がある**（有効化できなかった場合はこのCLAUDE.mdの運用規約として「直接pushしない」ことを守ること）
 - `git checkout -b <branch>` → 実装・検証 → `git push -u origin <branch>` → `gh pr create` → `gh pr merge --squash --delete-branch`
 - PRの粒度は1PR=1テーマ。descriptionにWhat/Why/Testingを含める
+- **`.claude/settings.json`（このリポジトリ内の`Edit`/`Write`/`git add`/`git commit`は`allow`扱い）**: 利用者の明示的な指示により、本リポジトリ内のファイル操作は確認不要としている（毎回確認されるUXが悪かったため）。ただし`.claude/settings.json`自体の編集（権限設定の変更）は`ask`へ明示的に例外化してあり、確認を求められる。この例外は`allow`の`Edit`/`Write`より先に評価されるため機能する。将来ここへ新たに広い`allow`ルールを追加する場合も、`.claude/settings.json`自体を対象から除外する書き方（`ask`側の`Edit(.claude/settings.json)`/`Write(.claude/settings.json)`）を維持すること
 
 ## アーキテクチャ上の分岐点に遭遇した時の取り決め（重要）
 過去の別プロジェクト（`aws-konnect-dcgw`）で、将来要件を確認せずに1つの選択肢を選んで進めてしまい手戻りが発生した実例がある。この再発防止:
