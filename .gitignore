@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Claude Code local overrides (machine-specific additionalDirectories etc.)
+.claude/settings.local.json
+
 # Terraform
 **/.terraform/*
 *.tfstate

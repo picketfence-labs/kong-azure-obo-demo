@@ -89,6 +89,29 @@ Terraform（`terraform/`配下）は、クライアントシークレット等�
 4. 疎通確認: `cd terraform && terraform init && terraform plan`
    - `auth_check` outputに想定通りのテナントID/サブスクリプションIDが出れば成功（この段階ではリソースは何も作成されない）
 
+### Kong Gateway（decK宣言的設定）
+`kong/`配下がRoute別のdecK state file（`mcp-route.yaml`: OBO+ACL、`llm-route.yaml`: Azure OpenAI抽象化）。ログイン用Route（Chat UI実装後に追加予定）を除き現時点で2ファイル。秘匿値は平文で書かず、decKの環境変数テンプレート`${{ env "DECK_XXX" }}`（`DECK_`プレフィックス必須）で参照する。
+
+1. Docker Composeを起動: `cp .env.example .env` を編集の上 `docker compose up -d`（Kong Enterpriseライセンスが必要）
+2. Terraform outputから必要な値を環境変数へ展開:
+   ```bash
+   cd terraform
+   export DECK_ENTRA_ISSUER="https://login.microsoftonline.com/$(terraform output -raw entra_tenant_id)/v2.0"
+   export DECK_MIDDLE_TIER_CLIENT_ID=$(terraform output -raw middle_tier_client_id)
+   export DECK_MIDDLE_TIER_CLIENT_SECRET=$(terraform output -raw middle_tier_client_secret)
+   export DECK_DOWNSTREAM_API_APPLICATION_ID_URI=$(terraform output -raw downstream_api_application_id_uri)
+   export DECK_GROUP_API_CUSTOMER_INQUIRY_OBJECT_ID=$(terraform output -raw group_api_customer_inquiry_object_id)
+   export DECK_GROUP_API_CUSTOMER_DETAILS_OBJECT_ID=$(terraform output -raw group_api_customer_details_object_id)
+   export DECK_AZURE_OPENAI_API_KEY=$(terraform output -raw azure_openai_api_key)
+   export DECK_AZURE_OPENAI_DEPLOYMENT_NAME=$(terraform output -raw azure_openai_deployment_name)
+   export DECK_AZURE_OPENAI_INSTANCE_NAME=kong-obo-demo-openai
+   cd ..
+   ```
+3. ローカルでの構文・スキーマ検証（Kongへの接続不要）: `deck file validate kong/mcp-route.yaml kong/llm-route.yaml`
+4. 実際のKongへ反映: `deck gateway sync kong/mcp-route.yaml kong/llm-route.yaml`
+
+ネットワーク分離の考え方（MCP/LLM Routeをブラウザから到達不可にする方式と、その実際の限界）は[ADR-0002](./docs/decisions/0002-mcp-llm-route-network-isolation.md)を参照。
+
 ## 知見の記録
 - 設計判断（選択肢・判断基準・想定と実際の差分）: [docs/decisions/](./docs/decisions/)（1判断＝1ファイル、`TEMPLATE.md`参照）
 - 想定通りに動かなかったこと（漏れなく記録）: [docs/troubleshooting-log.md](./docs/troubleshooting-log.md)

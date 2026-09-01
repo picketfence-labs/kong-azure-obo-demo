@@ -52,5 +52,23 @@
 - **対処・回避方法**: `az rest .../usages`でlimit>0のモデルを確認したところ`OpenAI.GlobalStandard.gpt-5-mini`（limit=500）に既定クォータがあることが判明。ユーザー確認の上gpt-5-miniへ変更
 - **教訓**: モデル選定時は`models`（提供有無）に加えて`usages`（実際に使えるクォータ）も確認する
 
+## 2026-09-01 Kong: `proxy_listen`はRoute単位でポートを分離できない
+- **何を期待していたか**: `docs/design-brief.md`の「LLM/MCP RouteはDocker Composeの内部専用ネットワークで保護する」という記述から、Kongの`proxy_listen`に複数ポートを設定し、一部だけをdocker-composeでhost公開すれば、そのポート専用のRouteだけが外部到達不可になる想定だった
+- **実際どうだったか**: `kong-ee/kong/templates/nginx_kong.lua`を確認すると、全`proxy_listen`エントリは単一のnginx `server {}`ブロックが複数`listen`ディレクティブを持つ構成であり、Route/ServiceはどのポートからのリクエストかによらずKong全体で同一に評価される。Route側に「このポートのみ」という紐付けフィールドも存在しない
+- **原因**: Kong OSS/EEの設計上、ポートとRouteの紐付けという概念自体が無い（不明ではなく、実装上そもそも存在しない機能）
+- **対処・回避方法**: 利用者に3つの実現方式（Kong複数インスタンス化／`ip-restriction`プラグイン／ポート非公開のみの簡易対応）を提示し確認を取った。詳細と採用した選択肢は[ADR-0002](./decisions/0002-mcp-llm-route-network-isolation.md)参照
+
+## 2026-09-01 decKの環境変数テンプレート構文は`DECK_`プレフィックス必須
+- **何を期待していたか**: `${{ env "変数名" }}`構文で任意の環境変数名を参照できると想定していた
+- **実際どうだったか**: 調査の結果、decK（`go-database-reconciler`）の実装は環境変数名に`DECK_`プレフィックスを強制しており、それ以外の名前ではエラーになることが判明（`kong/mcp-route.yaml`・`kong/llm-route.yaml`内の変数名は全て`DECK_`始まりで統一済み）
+- **原因**: decK側の仕様（`getPrefixedEnvVar`）
+- **対処・回避方法**: `kong-mcp-testbed`の実例（`DECK_AUTH0_ISSUER`等）でも同じ命名規則だったことを確認し、本リポジトリでも踏襲した
+
+## 2026-09-01 未検証のまま実装した値（`deck gateway sync`実行前に要確認）
+`kong/mcp-route.yaml`・`kong/llm-route.yaml`は、Kong/Azure OpenAIの現物環境に対してまだ一度も`deck gateway sync`していない（Kong Enterpriseライセンスが必要な操作のため、実際の起動・同期は利用者確認後に行う）。以下は`kong-ee`のスキーマ定義から妥当と判断したが、実機での動作は未確認:
+- `openid-connect`の`subject_token_issuers[].issuer`に設定した`https://login.microsoftonline.com/{tenant}/v2.0`形式が、実際にEntra IDが発行するBearerトークンの`iss`クレームと一致するか
+- `ai-proxy-advanced`の`model.options.azure_api_version`に設定した`2024-10-21`が、`terraform/azure_openai.tf`でデプロイした`gpt-5-mini`（2026-09時点の新しいモデル）に対して有効なAPIバージョンか
+- `deck gateway validate`/`deck gateway diff`自体を、対象の`kong/kong-gateway-dev:pr-21082-ubuntu`イメージに対してまだ実行できていない（Docker Compose起動にはKong Enterpriseライセンスが必要なため、利用者確認後の次ステップとする）
+
 ## 2026-09-01 デモAPI: テストデータ生成方法の記録
 CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記録。`services/demo-api/src/data.ts`の100人分の顧客データ（マイナンバーを模した12桁の値を含む）は、固定シード（42）のmulberry32擬似乱数生成器のみから機械的に組み立てた完全な架空データ。実在の人物・実在の番号を一切参照していない。氏名は姓・名それぞれ10種の一般的な単語からの組み合わせ、マイナンバー相当値は12桁の乱数文字列（チェックデジット等の実仕様は再現していない）。
