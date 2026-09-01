@@ -48,6 +48,22 @@ output "group_api_customer_details_object_id" {
   value       = azuread_group.api_customer_details.object_id
 }
 
+output "azure_openai_endpoint" {
+  description = "ai-proxy-advancedプラグインのupstream URLに使うAzure OpenAIエンドポイント"
+  value       = azurerm_cognitive_account.openai.endpoint
+}
+
+output "azure_openai_deployment_name" {
+  description = "ai-proxy-advancedプラグインのdeployment_idに使うモデルデプロイ名"
+  value       = azurerm_cognitive_deployment.gpt_5_mini.name
+}
+
+output "azure_openai_api_key" {
+  description = "ai-proxy-advancedプラグインのAPIキー"
+  value       = azurerm_cognitive_account.openai.primary_access_key
+  sensitive   = true
+}
+
 output "test_user_credentials" {
   description = "検証用ユーザーのサインイン情報（ブラウザでのログイン確認用）"
   value = {
