@@ -29,7 +29,16 @@ Chat UI（Next.js）はKongの認証を全面的に信頼し、独自のOAuthク
 - **実LLM**: Azure OpenAI（`ai-proxy-advanced`経由で抽象化）
 
 ## セットアップ手順
-（実装が進むにつれて具体化します）
+
+### Azure/Entra ID 認証（Terraformを実行する前に一度だけ）
+Terraform（`terraform/`配下）は、クライアントシークレット等の静的資格情報を持たず、Azure CLIの委譲認証に委ねる（判断根拠: [ADR-0001](./docs/decisions/0001-terraform-azure-auth-method.md)）。
+
+1. Azure CLIをインストール: `brew install azure-cli`
+2. ログイン: `az login`（ブラウザが開くのでAzureアカウントでサインインする）
+3. 対象テナント/サブスクリプションを確認: `az account show --output table`
+   - 複数サブスクリプションがある場合は `az account set --subscription <id>` で切り替える
+4. 疎通確認: `cd terraform && terraform init && terraform plan`
+   - `auth_check` outputに想定通りのテナントID/サブスクリプションIDが出れば成功（この段階ではリソースは何も作成されない）
 
 ## 知見の記録
 - 設計判断（選択肢・判断基準・想定と実際の差分）: [docs/decisions/](./docs/decisions/)（1判断＝1ファイル、`TEMPLATE.md`参照）
