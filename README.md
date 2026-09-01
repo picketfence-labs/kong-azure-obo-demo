@@ -4,7 +4,9 @@ Chat AIエージェントからMCP経由でバックエンドAPIへアクセス�
 
 着手前の基本設計は [docs/design-brief.md](./docs/design-brief.md) を参照してください。個別の設計判断（検討した選択肢・判断基準）は [docs/decisions/](./docs/decisions/) に記録します。
 
-**実際に動かして動作確認したい方は [TESTING.md](./TESTING.md) を参照してください**（スクリーンショット付きの検証手順）。
+![Chat UI画面](./docs/testing-images/02-chat-inquiry-only-details-denied.png)
+
+**実際に動かして動作確認したい方は [TESTING.md](./TESTING.md) を参照してください**（スクリーンショット付きの検証手順）。**OBO（On-Behalf-Of）によるトークン交換の仕組みを図解付きで理解したい方は [docs/OBO.md](./docs/OBO.md) を参照してください**。
 
 ## 全体アーキテクチャ
 
@@ -40,37 +42,7 @@ Chat UI（Next.js）はKongの認証を全面的に信頼し、独自のOAuthク
 | `GET /customers?name=&gender=&prefecture=` | Customer Inquiry | 氏名（部分一致）/性別/都道府県、AND条件（全て省略可） | `id`/`name`/`gender`/`prefecture`の4項目のみ |
 | `GET /customers/:id` | Customer Details | 顧客ID（UUID）による完全一致のみ | フル項目（下記参照）。一覧・部分一致検索のエンドポイントは存在しないため、Customer Inquiryを経由しないとID自体を取得できない |
 
-### テストデータの生成タイミングと構造
-`services/demo-api/src/data.ts`のモジュールトップレベルで`generateCustomers(100, 42)`が**プロセス起動時に一度だけ**実行され、以降はメモリ上の配列を参照するだけ（リクエスト毎の再生成やDB永続化は無い）。シード（`42`）固定の擬似乱数（mulberry32）のみから機械的に組み立てているため、プロセス/コンテナを再起動しても**毎回全く同じ100件（IDを含む）が再現**される。実在の人物・実在の番号は一切参照していない架空データ（生成方法の詳細: [docs/troubleshooting-log.md](./docs/troubleshooting-log.md)）。
-
-生成される1件のフィールド構成:
-
-| フィールド | 型 | Inquiryで返す | Detailsで返す |
-|---|---|---|---|
-| `id` | UUID v4形式の文字列 | ✅ | ✅ |
-| `name` | 姓+名 | ✅ | ✅ |
-| `gender` | `"male"` \| `"female"` | ✅ | ✅ |
-| `prefecture` | 47都道府県のいずれか | ✅ | ✅ |
-| `age` | 20〜79の整数 | ✗ | ✅ |
-| `myNumber` | 12桁の数字文字列（マイナンバー相当、チェックデジット等の実仕様は再現していない） | ✗ | ✅ |
-| `address` | `{都道府県}〇〇市X丁目X番X号`（架空の地名） | ✗ | ✅ |
-| `phone` | `090-XXXX-XXXX` | ✗ | ✅ |
-| `email` | `customer{連番}@example.com` | ✗ | ✅ |
-
-サンプル（`GET /customers/849d73eb-438a-407d-8904-02c802d7c570`相当）:
-```json
-{
-  "id": "849d73eb-438a-407d-8904-02c802d7c570",
-  "name": "小林花",
-  "gender": "female",
-  "prefecture": "島根県",
-  "age": 30,
-  "myNumber": "055262378522",
-  "address": "島根県〇〇市3丁目1番6号",
-  "phone": "090-6690-9491",
-  "email": "customer0@example.com"
-}
-```
+テストデータの生成タイミングと構造（生成される具体的なフィールド・サンプル）は [TESTING.md](./TESTING.md) を参照してください。
 
 ### ローカル起動
 ```bash
