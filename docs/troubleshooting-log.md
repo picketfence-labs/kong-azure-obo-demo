@@ -18,3 +18,10 @@
 ```
 
 <!-- 以下、実際のログをこの下に追記していく -->
+
+## 2026-09-01 Azure/Terraform bootstrap `.gitignore`が`.terraform.lock.hcl`を誤って除外
+- **何を期待していたか**: `terraform init`で生成される`.terraform.lock.hcl`はプロバイダーバージョン固定のためコミット対象になる想定だった
+- **実際どうだったか**: 初期Scaffolding時の`.gitignore`に`.terraform.lock.hcl`が（`!`否定無しで）そのまま列挙されており、`git check-ignore -v`で除外対象になっていることを確認
+- **原因**: 汎用的なTerraform用`.gitignore`テンプレートをそのまま流用した際に、通常除外すべきでないファイルまで含めてしまったと推測（不明、要因は推測）
+- **対処・回避方法**: `.gitignore`から`.terraform.lock.hcl`の行を削除しコミット対象に戻した
+- **コスト**: 軽微（`git check-ignore`で1回確認しただけ）
