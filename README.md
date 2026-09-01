@@ -4,6 +4,8 @@ Chat AIエージェントからMCP経由でバックエンドAPIへアクセス�
 
 着手前の基本設計は [docs/design-brief.md](./docs/design-brief.md) を参照してください。個別の設計判断（検討した選択肢・判断基準）は [docs/decisions/](./docs/decisions/) に記録します。
 
+**実際に動かして動作確認したい方は [TESTING.md](./TESTING.md) を参照してください**（スクリーンショット付きの検証手順）。
+
 ## 全体アーキテクチャ
 
 Kong Gatewayが3系統のRoute/Serviceをフロントします（詳細は [docs/design-brief.md](./docs/design-brief.md) 参照）:
