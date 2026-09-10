@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "kong-azure-obo-demo アーキテクチャ概要",
+    "output": "obo-overview.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "user", "type": "external", "label": "ユーザー", "sublabel": "ブラウザ", "pos": [40, 40], "size": [130, 60] },
+    { "id": "idp", "type": "security", "label": "Entra ID", "sublabel": "IdP（ミドル層App / API App）", "pos": [40, 230], "size": [260, 90] },
+    { "id": "r1", "type": "backend", "label": "Route① /", "sublabel": "openid-connect（認可コードフロー、OBOなし）", "pos": [400, 40], "size": [210, 70] },
+    { "id": "r2", "type": "backend", "label": "Route② /mcp/customers", "sublabel": "openid-connect（OBO）+ ai-mcp-proxy（ACL）", "pos": [400, 230], "size": [210, 90] },
+    { "id": "r3", "type": "backend", "label": "Route③ /llm", "sublabel": "ai-proxy-advanced", "pos": [400, 420], "size": [210, 60] },
+    { "id": "chatui", "type": "frontend", "label": "chat-ui", "sublabel": "Next.js + Vercel AI SDK", "pos": [850, 40], "size": [190, 70] },
+    { "id": "demoapi", "type": "backend", "label": "demo-api", "sublabel": "Bun/TypeScript（Customer Inquiry / Details）", "pos": [850, 230], "size": [220, 90] },
+    { "id": "aoai", "type": "cloud", "label": "Azure OpenAI", "pos": [850, 420], "size": [170, 60] }
+  ],
+  "boundaries": [
+    { "kind": "security-group", "label": "Kong Gateway 3.16（Postgres backed）", "wraps": ["r1", "r2", "r3"] },
+    { "kind": "region", "label": "kong-internal ネットワーク（外部到達不可）", "wraps": ["chatui", "demoapi"] }
+  ],
+  "connections": [
+    { "id": "user-to-r1", "from": "user", "to": "r1", "label": "① ログイン（認可コードフロー）", "variant": "emphasis" },
+    { "id": "r1-to-idp", "from": "r1", "to": "idp", "label": "認証・トークン発行", "variant": "security" },
+    { "id": "r1-to-chatui", "from": "r1", "to": "chatui", "label": "X-User-Name/Email, Authorization: Bearer" },
+    { "id": "chatui-to-r2", "from": "chatui", "to": "r2", "label": "② tools/call（Bearerトークン再提示）" },
+    { "id": "r2-to-idp", "from": "r2", "to": "idp", "label": "③ OBOトークン交換（token_exchange）", "variant": "security", "labelAt": [320, 334] },
+    { "id": "r2-to-demoapi", "from": "r2", "to": "demoapi", "label": "④ ACL通過後、実データ取得", "labelAt": [730, 334] },
+    { "id": "chatui-to-r3", "from": "chatui", "to": "r3", "label": "⑤ LLM呼び出し（model: kong-demo-llm）", "fromSide": "right", "toSide": "top", "via": [[1125, 75], [1125, 390], [505, 390]], "labelAt": [800, 405] },
+    { "id": "r3-to-aoai", "from": "r3", "to": "aoai", "label": "Azure資格情報を注入" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Route①", "items": ["ブラウザ⇄Next.jsの経路", "openid-connectが認可コードフローとセッションCookie発行のみを扱う（OBOはしない）"] },
+    { "dot": "emerald", "title": "Route②", "items": ["Next.jsのエージェント（サーバーサイド）⇄デモAPIの経路", "openid-connectがOBO（token_exchange）でトークンを交換", "ai-mcp-proxyがACLを評価してからMCP変換済みTool呼び出しとして中継"] },
+    { "dot": "amber", "title": "Route③", "items": ["Next.jsのエージェント⇄Azure OpenAIの経路", "ai-proxy-advancedがAzure固有の資格情報・エンドポイントを注入（OBOとは無関係）"] }
+  ]
+}

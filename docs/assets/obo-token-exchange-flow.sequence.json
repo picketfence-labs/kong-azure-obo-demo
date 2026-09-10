@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "OBOトークン交換フロー",
+    "output": "obo-token-exchange-flow.html",
+    "column_fit": "spread",
+    "viewBox": [950, 580],
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    { "id": "u", "type": "external", "label": "ユーザー", "sublabel": "ブラウザ" },
+    { "id": "k1", "type": "backend", "label": "Kong Route①", "sublabel": "openid-connect" },
+    { "id": "entra", "type": "security", "label": "Entra ID", "sublabel": "IdP" },
+    { "id": "cui", "type": "frontend", "label": "chat-ui", "sublabel": "Next.js" },
+    { "id": "k2", "type": "backend", "label": "Kong Route②", "sublabel": "OBO + ACL" },
+    { "id": "api", "type": "backend", "label": "demo-api", "sublabel": "Customer API" }
+  ],
+  "segments": [
+    { "from": 150, "to": 282, "label": "ログイン（認可コードフロー）" },
+    { "from": 290, "to": 338, "label": "Tool呼び出し" },
+    { "from": 346, "to": 394, "label": "OBOトークン交換" },
+    { "from": 402, "to": 506, "label": "ACL評価 + データ取得" }
+  ],
+  "messages": [
+    { "id": "get-root", "from": "u", "to": "k1", "y": 160, "label": "GET / （未ログイン）", "variant": "default" },
+    { "id": "redirect-login", "from": "k1", "to": "entra", "y": 188, "label": "認可コードフロー（リダイレクト→ログイン→コード交換）", "variant": "default", "note": "scope: openid, profile, api://<ミドル層App>/access_as_user" },
+    { "id": "token-a", "from": "entra", "to": "k1", "y": 216, "label": "Token A（aud=ミドル層App）", "variant": "return", "note": "セッションCookie発行。upstream_headersでName/EmailをX-User-*へ、Token AをAuthorization: Bearerへマッピング" },
+    { "id": "forward-headers", "from": "k1", "to": "cui", "y": 244, "label": "X-User-*, Bearer Token A", "variant": "default" },
+    { "id": "show-chat", "from": "cui", "to": "u", "y": 272, "label": "Chat UI表示（ログイン中）", "variant": "return" },
+    { "id": "prompt", "from": "u", "to": "cui", "y": 300, "label": "プロンプト送信（例:「東京都の顧客を検索して」）", "variant": "emphasis" },
+    { "id": "tools-call", "from": "cui", "to": "k2", "y": 328, "label": "tools/call（Bearer Token A）", "variant": "emphasis", "note": "openid-connectがToken Aを検証。client_id（ミドル層App）がaudienceと一致するためOBO交換を実行できる" },
+    { "id": "token-exchange", "from": "k2", "to": "entra", "y": 356, "label": "token_exchange（jwt_bearer, provider=microsoft）", "variant": "security", "note": "scope=api://ダウンストリームAPI App/.default" },
+    { "id": "token-b", "from": "entra", "to": "k2", "y": 384, "label": "Token B（aud=ダウンストリームAPI App、groups付き）", "variant": "return", "note": "kong.ctx.shared.ai_mcp_oauth2に書き込み、ai-mcp-proxyのACL評価（groupsをtools[].acl.allowと照合）に渡す" },
+    { "id": "get-customers", "from": "k2", "to": "api", "y": 412, "label": "GET /customers（許可時、Bearer Token B）", "variant": "emphasis" },
+    { "id": "customer-data", "from": "api", "to": "k2", "y": 440, "label": "実データ（顧客ID/氏名/性別/都道府県）", "variant": "return" },
+    { "id": "tools-response", "from": "k2", "to": "cui", "y": 468, "label": "tools/callレスポンス", "variant": "return", "note": "ACL拒否時は403 Forbidden（tools/listにも出現しない）" },
+    { "id": "final-answer", "from": "cui", "to": "u", "y": 496, "label": "回答を表示", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "k1", "from": 160, "to": 244, "type": "backend" },
+    { "participant": "entra", "from": 188, "to": 216, "type": "security" },
+    { "participant": "cui", "from": 244, "to": 496, "type": "frontend" },
+    { "participant": "entra", "from": 356, "to": 384, "type": "security" },
+    { "participant": "k2", "from": 328, "to": 468, "type": "backend" },
+    { "participant": "api", "from": 412, "to": 440, "type": "backend" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Token A → Token B", "items": ["oid/appidは同一のまま、audienceとscopeがミドル層AppからダウンストリームAPI Appへ切り替わる", "groupsクレームはToken Bで初めて現れ、ACL評価に使われる"] },
+    { "dot": "emerald", "title": "ACL評価", "items": ["ai-mcp-proxyがacl_attribute_type: oauth_access_token / access_token_claim_field: groupsでToken Bのgroupsを読む", "許可時はGET /customersを中継、拒否時は403 Forbidden（tools/listにも出現しない）"] },
+    { "dot": "amber", "title": "OBOの本質", "items": ["ユーザーの同意を都度求めることなくトークンを交換する（RFC 7523, JWT Bearer）", "Entra ID向けにprovider: microsoftを指定するとrequested_token_use=on_behalf_ofが自動付与される"] }
+  ]
+}
