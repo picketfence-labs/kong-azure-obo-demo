@@ -1,3 +1,5 @@
+*Languages: 日本語（このページ） | [English](./OBO_en.md)*
+
 # OBO（On-Behalf-Of）解説
 
 このデモにおける全体構成と、Kong Gateway と Entra ID の間で実際に行われている OBO（On-Behalf-Of）トークン交換の詳細をまとめます。設計判断の背景は [design-brief.md](./design-brief.md) を、実装時に判明した挙動は [troubleshooting-log.md](./troubleshooting-log.md) を参照してください。

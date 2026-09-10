@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "OBO Token Exchange Flow",
+    "output": "obo-token-exchange-flow_en.html",
+    "column_fit": "spread",
+    "viewBox": [950, 580],
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    { "id": "u", "type": "external", "label": "User", "sublabel": "Browser" },
+    { "id": "k1", "type": "backend", "label": "Kong Route①", "sublabel": "openid-connect" },
+    { "id": "entra", "type": "security", "label": "Entra ID", "sublabel": "IdP" },
+    { "id": "cui", "type": "frontend", "label": "chat-ui", "sublabel": "Next.js" },
+    { "id": "k2", "type": "backend", "label": "Kong Route②", "sublabel": "OBO + ACL" },
+    { "id": "api", "type": "backend", "label": "demo-api", "sublabel": "Customer API" }
+  ],
+  "segments": [
+    { "from": 150, "to": 282, "label": "Login (auth code flow)" },
+    { "from": 290, "to": 338, "label": "Tool call" },
+    { "from": 346, "to": 394, "label": "OBO token exchange" },
+    { "from": 402, "to": 506, "label": "ACL evaluation + data fetch" }
+  ],
+  "messages": [
+    { "id": "get-root", "from": "u", "to": "k1", "y": 160, "label": "GET / (not logged in)", "variant": "default" },
+    { "id": "redirect-login", "from": "k1", "to": "entra", "y": 188, "label": "Auth code flow (redirect → login → code exchange)", "variant": "default", "note": "scope: openid, profile, api://<middle-tier App>/access_as_user" },
+    { "id": "token-a", "from": "entra", "to": "k1", "y": 216, "label": "Token A (aud=middle-tier App)", "variant": "return", "note": "Issues session cookie. upstream_headers maps Name/Email to X-User-*, Token A to Authorization: Bearer" },
+    { "id": "forward-headers", "from": "k1", "to": "cui", "y": 244, "label": "X-User-*, Bearer Token A", "variant": "default" },
+    { "id": "show-chat", "from": "cui", "to": "u", "y": 272, "label": "Show chat UI (logged in)", "variant": "return" },
+    { "id": "prompt", "from": "u", "to": "cui", "y": 300, "label": "Send prompt (e.g. \"Search customers in Tokyo\")", "variant": "emphasis" },
+    { "id": "tools-call", "from": "cui", "to": "k2", "y": 328, "label": "tools/call (Bearer Token A)", "variant": "emphasis", "note": "openid-connect validates Token A. Since client_id (middle-tier App) matches the audience, it can perform the OBO exchange" },
+    { "id": "token-exchange", "from": "k2", "to": "entra", "y": 356, "label": "token_exchange (jwt_bearer, provider=microsoft)", "variant": "security", "note": "scope=api://downstream API App/.default" },
+    { "id": "token-b", "from": "entra", "to": "k2", "y": 384, "label": "Token B (aud=downstream API App, with groups)", "variant": "return", "note": "Written to kong.ctx.shared.ai_mcp_oauth2, passed to ai-mcp-proxy's ACL evaluation (matches groups against tools[].acl.allow)" },
+    { "id": "get-customers", "from": "k2", "to": "api", "y": 412, "label": "GET /customers (if allowed, Bearer Token B)", "variant": "emphasis" },
+    { "id": "customer-data", "from": "api", "to": "k2", "y": 440, "label": "Real data (customer ID/name/gender/prefecture)", "variant": "return" },
+    { "id": "tools-response", "from": "k2", "to": "cui", "y": 468, "label": "tools/call response", "variant": "return", "note": "403 Forbidden if ACL denies (also absent from tools/list)" },
+    { "id": "final-answer", "from": "cui", "to": "u", "y": 496, "label": "Show answer", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "k1", "from": 160, "to": 244, "type": "backend" },
+    { "participant": "entra", "from": 188, "to": 216, "type": "security" },
+    { "participant": "cui", "from": 244, "to": 496, "type": "frontend" },
+    { "participant": "entra", "from": 356, "to": 384, "type": "security" },
+    { "participant": "k2", "from": 328, "to": 468, "type": "backend" },
+    { "participant": "api", "from": 412, "to": 440, "type": "backend" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Token A → Token B", "items": ["oid/appid stay the same; audience and scope switch from the middle-tier App to the downstream API App", "The groups claim first appears in Token B and is used for ACL evaluation"] },
+    { "dot": "emerald", "title": "ACL evaluation", "items": ["ai-mcp-proxy reads Token B's groups via acl_attribute_type: oauth_access_token / access_token_claim_field: groups", "If allowed, relays GET /customers; if denied, returns 403 Forbidden (also absent from tools/list)"] },
+    { "dot": "amber", "title": "The essence of OBO", "items": ["Exchanges tokens without asking the user for consent each time (RFC 7523, JWT Bearer)", "Specifying provider: microsoft for Entra ID automatically adds requested_token_use=on_behalf_of"] }
+  ]
+}
