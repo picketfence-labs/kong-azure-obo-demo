@@ -6,9 +6,9 @@
 
 Kong Gateway が単一のエントリポイント（`http://localhost:8000`）として、性質の異なる3系統の通信をフロントします。ブラウザ・Next.js・デモAPI・Azure OpenAI はいずれも Kong を介してのみ到達可能で、相互に直接通信しません（`kong-internal` ネットワーク、`internal: true`）。
 
-![kong-azure-obo-demo アーキテクチャ概要](./assets/obo-overview.png)
+[![kong-azure-obo-demo アーキテクチャ概要](./assets/obo-overview.png)](https://picketfence-labs.github.io/diagrams/27298e53d910/)
 
-*インタラクティブ版（パン/ズーム・テーマ切替）は [`docs/assets/obo-overview.html`](./assets/obo-overview.html) をブラウザで開くと利用できる（ソースは同ディレクトリの `obo-overview.architecture.json`、[Archify](https://github.com/tt-a1i/archify)で生成）。*
+*画像クリックでインタラクティブ版（パン/ズーム・テーマ切替）を開く（[picketfence-labs/diagrams](https://github.com/picketfence-labs/diagrams)、GitHub Pagesで配信。ソースは`docs/assets/obo-overview.architecture.json`、[Archify](https://github.com/tt-a1i/archify)で生成）。*
 
 - **Route①（`kong/login-route.yaml`）**: ブラウザ⇄Next.jsの経路。`openid-connect` が認可コードフローとセッションCookieの発行のみを扱う。OBOはしない
 - **Route②（`kong/mcp-route.yaml`）**: Next.jsのエージェント（サーバーサイド）⇄デモAPIの経路。`openid-connect` が OBO（`token_exchange`）でトークンを交換し、`ai-mcp-proxy` がACLを評価してからMCP変換済みのTool呼び出しとしてデモAPIへ中継する
@@ -20,9 +20,9 @@ Kong Gateway が単一のエントリポイント（`http://localhost:8000`）�
 
 OBOの本質は、**「ミドル層App（Kongが代理人として振る舞うApp）宛てのトークン」を、ユーザーの同意を都度求めることなく「ダウンストリームAPI App宛てのトークン」へ交換する**ことです。RFC 7523（JWT Bearer）を使い、Entra ID向けには `provider: microsoft` を指定することで `requested_token_use=on_behalf_of` が自動付与されます（[design-brief.md](./design-brief.md) 3節）。
 
-![OBOトークン交換フロー](./assets/obo-token-exchange-flow.png)
+[![OBOトークン交換フロー](./assets/obo-token-exchange-flow.png)](https://picketfence-labs.github.io/diagrams/aba73733596b/)
 
-*インタラクティブ版（パン/ズーム・テーマ切替）は [`docs/assets/obo-token-exchange-flow.html`](./assets/obo-token-exchange-flow.html) をブラウザで開くと利用できる（ソースは同ディレクトリの `obo-token-exchange-flow.sequence.json`、[Archify](https://github.com/tt-a1i/archify)で生成）。*
+*画像クリックでインタラクティブ版（パン/ズーム・テーマ切替）を開く（[picketfence-labs/diagrams](https://github.com/picketfence-labs/diagrams)、GitHub Pagesで配信。ソースは`docs/assets/obo-token-exchange-flow.sequence.json`、[Archify](https://github.com/tt-a1i/archify)で生成）。*
 
 ### トークンの中身がどう変わるか
 
