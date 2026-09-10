@@ -6,40 +6,9 @@
 
 Kong Gateway が単一のエントリポイント（`http://localhost:8000`）として、性質の異なる3系統の通信をフロントします。ブラウザ・Next.js・デモAPI・Azure OpenAI はいずれも Kong を介してのみ到達可能で、相互に直接通信しません（`kong-internal` ネットワーク、`internal: true`）。
 
-```mermaid
-flowchart TB
-    subgraph Browser["ブラウザ"]
-        User["ユーザー"]
-    end
+![kong-azure-obo-demo アーキテクチャ概要](./assets/obo-overview.png)
 
-    subgraph EntraID["Entra ID"]
-        IdP["IdP\n（ミドル層App / ダウンストリームAPI App）"]
-    end
-
-    subgraph Kong["Kong Gateway 3.16（Postgres backed）"]
-        R1["Route① /\nopenid-connect\n（認可コードフロー、OBOなし）"]
-        R2["Route② /mcp/customers\nopenid-connect（OBO）\n+ ai-mcp-proxy（ACL）"]
-        R3["Route③ /llm\nai-proxy-advanced"]
-    end
-
-    subgraph Internal["kong-internalネットワーク（外部到達不可）"]
-        ChatUI["chat-ui\n（Next.js + Vercel AI SDK）"]
-        DemoAPI["demo-api\n（Bun/TypeScript）\nCustomer Inquiry / Details"]
-    end
-
-    AOAI["Azure OpenAI"]
-
-    User -- "① ログイン（認可コードフロー）" --> R1
-    R1 <-- "認証・トークン発行" --> IdP
-    R1 -- "X-User-Name/Email\nAuthorization: Bearer" --> ChatUI
-
-    ChatUI -- "② tools/call（Bearerトークン再提示）" --> R2
-    R2 <-- "③ OBOトークン交換\n(token_exchange)" --> IdP
-    R2 -- "④ ACL通過後、実データ取得" --> DemoAPI
-
-    ChatUI -- "⑤ LLM呼び出し\nmodel: kong-demo-llm" --> R3
-    R3 -- "Azure資格情報を注入" --> AOAI
-```
+*インタラクティブ版（パン/ズーム・テーマ切替）は [`docs/assets/obo-overview.html`](./assets/obo-overview.html) をブラウザで開くと利用できる（ソースは同ディレクトリの `obo-overview.architecture.json`、[Archify](https://github.com/tt-a1i/archify)で生成）。*
 
 - **Route①（`kong/login-route.yaml`）**: ブラウザ⇄Next.jsの経路。`openid-connect` が認可コードフローとセッションCookieの発行のみを扱う。OBOはしない
 - **Route②（`kong/mcp-route.yaml`）**: Next.jsのエージェント（サーバーサイド）⇄デモAPIの経路。`openid-connect` が OBO（`token_exchange`）でトークンを交換し、`ai-mcp-proxy` がACLを評価してからMCP変換済みのTool呼び出しとしてデモAPIへ中継する
@@ -51,42 +20,9 @@ flowchart TB
 
 OBOの本質は、**「ミドル層App（Kongが代理人として振る舞うApp）宛てのトークン」を、ユーザーの同意を都度求めることなく「ダウンストリームAPI App宛てのトークン」へ交換する**ことです。RFC 7523（JWT Bearer）を使い、Entra ID向けには `provider: microsoft` を指定することで `requested_token_use=on_behalf_of` が自動付与されます（[design-brief.md](./design-brief.md) 3節）。
 
-```mermaid
-sequenceDiagram
-    actor U as ユーザー（ブラウザ）
-    participant K1 as Kong Route①<br/>(openid-connect)
-    participant Entra as Entra ID
-    participant CUI as chat-ui (Next.js)
-    participant K2 as Kong Route②<br/>(openid-connect + ai-mcp-proxy)
-    participant API as demo-api
+![OBOトークン交換フロー](./assets/obo-token-exchange-flow.png)
 
-    U->>K1: GET / （未ログイン）
-    K1->>Entra: 認可コードフローへリダイレクト
-    Entra->>U: ログイン画面（メール→パスワード）
-    U->>Entra: 認証情報を入力
-    Entra->>K1: 認可コード（scopes: openid, profile,<br/>api://<ミドル層App>/access_as_user）
-    K1->>Entra: コード→トークン交換
-    Entra-->>K1: Token A（aud=ミドル層App）
-    Note over K1: セッションCookie発行。<br/>upstream_headersでname/preferred_usernameを<br/>X-User-Name/X-User-Emailへ、<br/>upstream_access_token_headerでToken Aを<br/>Authorization: Bearerへマッピング
-    K1->>CUI: X-User-Name, X-User-Email,<br/>Authorization: Bearer Token A
-    CUI-->>U: Chat UI表示（ログイン中: ユーザー名）
-
-    U->>CUI: プロンプト送信（例:「東京都の顧客を検索して」）
-    CUI->>K2: tools/call<br/>Authorization: Bearer Token A（そのまま再提示）
-    Note over K2: openid-connectがToken Aを検証。<br/>client_id（ミドル層App）がToken Aのaudienceと<br/>一致するためOBO交換を実行できる
-    K2->>Entra: token_exchange(grant_type=jwt_bearer,<br/>provider=microsoft, assertion=Token A,<br/>scope=api://<ダウンストリームAPI App>/.default)
-    Entra-->>K2: Token B（aud=ダウンストリームAPI App、groupsクレーム付き）
-    Note over K2: openid-connectがkong.ctx.shared.ai_mcp_oauth2に<br/>Token Bのクレームを書き込み、<br/>ai-mcp-proxyのACL評価に渡す（map_identities_from: exchanged_tokens）
-    K2->>K2: ai-mcp-proxy: groupsクレームを<br/>tools[].acl.allowと照合
-    alt ACL許可
-        K2->>API: GET /customers?... <br/>Authorization: Bearer Token B（再転送）
-        API-->>K2: 実データ（顧客ID/氏名/性別/都道府県）
-        K2-->>CUI: tools/callレスポンス
-    else ACL拒否
-        K2-->>CUI: 403 Forbidden（tools/listにも出現しない）
-    end
-    CUI-->>U: 回答を表示
-```
+*インタラクティブ版（パン/ズーム・テーマ切替）は [`docs/assets/obo-token-exchange-flow.html`](./assets/obo-token-exchange-flow.html) をブラウザで開くと利用できる（ソースは同ディレクトリの `obo-token-exchange-flow.sequence.json`、[Archify](https://github.com/tt-a1i/archify)で生成）。*
 
 ### トークンの中身がどう変わるか
 
