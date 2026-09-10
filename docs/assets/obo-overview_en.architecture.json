@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "kong-azure-obo-demo Architecture Overview",
+    "output": "obo-overview_en.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "user", "type": "external", "label": "User", "sublabel": "Browser", "pos": [40, 40], "size": [130, 60] },
+    { "id": "idp", "type": "security", "label": "Entra ID", "sublabel": "IdP (middle-tier App / API App)", "pos": [40, 230], "size": [260, 90] },
+    { "id": "r1", "type": "backend", "label": "Route① /", "sublabel": "openid-connect (auth code flow, no OBO)", "pos": [400, 40], "size": [210, 70] },
+    { "id": "r2", "type": "backend", "label": "Route② /mcp/customers", "sublabel": "openid-connect (OBO) + ai-mcp-proxy (ACL)", "pos": [400, 230], "size": [210, 90] },
+    { "id": "r3", "type": "backend", "label": "Route③ /llm", "sublabel": "ai-proxy-advanced", "pos": [400, 420], "size": [210, 60] },
+    { "id": "chatui", "type": "frontend", "label": "chat-ui", "sublabel": "Next.js + Vercel AI SDK", "pos": [850, 40], "size": [190, 70] },
+    { "id": "demoapi", "type": "backend", "label": "demo-api", "sublabel": "Bun/TypeScript (Customer Inquiry / Details)", "pos": [850, 230], "size": [220, 90] },
+    { "id": "aoai", "type": "cloud", "label": "Azure OpenAI", "pos": [850, 420], "size": [170, 60] }
+  ],
+  "boundaries": [
+    { "kind": "security-group", "label": "Kong Gateway 3.16 (Postgres backed)", "wraps": ["r1", "r2", "r3"] },
+    { "kind": "region", "label": "kong-internal network (not externally reachable)", "wraps": ["chatui", "demoapi"] }
+  ],
+  "connections": [
+    { "id": "user-to-r1", "from": "user", "to": "r1", "label": "① Login (auth code flow)", "variant": "emphasis" },
+    { "id": "r1-to-idp", "from": "r1", "to": "idp", "label": "Authenticate, issue token", "variant": "security" },
+    { "id": "r1-to-chatui", "from": "r1", "to": "chatui", "label": "X-User-Name/Email, Authorization: Bearer" },
+    { "id": "chatui-to-r2", "from": "chatui", "to": "r2", "label": "② tools/call (re-sends Bearer token)" },
+    { "id": "r2-to-idp", "from": "r2", "to": "idp", "label": "③ OBO token exchange (token_exchange)", "variant": "security", "labelAt": [320, 334] },
+    { "id": "r2-to-demoapi", "from": "r2", "to": "demoapi", "label": "④ Fetch real data after ACL pass", "labelAt": [730, 334] },
+    { "id": "chatui-to-r3", "from": "chatui", "to": "r3", "label": "⑤ LLM call (model: kong-demo-llm)", "fromSide": "right", "toSide": "top", "via": [[1125, 75], [1125, 390], [505, 390]], "labelAt": [800, 405] },
+    { "id": "r3-to-aoai", "from": "r3", "to": "aoai", "label": "Inject Azure credentials" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Route①", "items": ["Browser ⇄ Next.js path", "openid-connect only handles the auth code flow and session cookie issuance (no OBO)"] },
+    { "dot": "emerald", "title": "Route②", "items": ["Next.js agent (server-side) ⇄ demo-api path", "openid-connect exchanges the token via OBO (token_exchange)", "ai-mcp-proxy evaluates the ACL before relaying as an MCP-converted tool call"] },
+    { "dot": "amber", "title": "Route③", "items": ["Next.js agent ⇄ Azure OpenAI path", "ai-proxy-advanced injects Azure-specific credentials and endpoint details (unrelated to OBO)"] }
+  ]
+}
