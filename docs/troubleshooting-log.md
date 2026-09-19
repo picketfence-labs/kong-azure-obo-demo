@@ -160,3 +160,8 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: `.git/index.lock: Operation not permitted`でstage前に失敗した
 - **原因**: Codex sandboxではrepositoryの`.git`配下への書き込みが許可されていないため
 - **対処・回避方法**: 対象pathを明示した同じ`git add`をsandbox外の承認済み実行として再試行する。未追跡の`AGENTS.md`はstage対象に含めない
+
+## 2026-09-20 08:16 JST Konnect bootstrap入力とテストユーザーpassword lifecycleを確定
+- **確認結果**: Konnectの既存Control Plane 162件はすべてUS geoで、`azure-obo-demo`という同名CPは存在しなかった。新規CP名は`azure-obo-demo`、geoはUS（North America）とする
+- **password lifecycle**: テストユーザーのpasswordはTerraformの`random_password.test_user`が作成時に生成し、sensitive outputとしてのみ参照する。ユーザーをデモごとに作成・destroyする運用では再作成時に新しい値となる
+- **対処・運用方針**: passwordを文書へ平文保存しない。通常のデモサイクル外のローテーションは利用者の明示指示なしに実行しない。既存stateが空の問題は別途解消が必要

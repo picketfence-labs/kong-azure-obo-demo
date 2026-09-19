@@ -34,6 +34,8 @@ Entra IDテナント上に作成済みの3ユーザーです。全員同じパ�
 | ② Inquiryのみ | `demo-inquiry-only@hashipicketfence.onmicrosoft.com` | 安全な保管先から取得 | 顧客検索（Customer Inquiry）のみ |
 | ③ 両方 | `demo-both-apis@hashipicketfence.onmicrosoft.com` | 安全な保管先から取得 | 顧客検索＋顧客詳細（Customer Inquiry・Customer Details両方） |
 
+パスワードは利用者が固定値を設定するのではなく、Terraformの`random_password.test_user`が各ユーザー作成時に24文字で生成し、`azuread_user.password`へ渡します。正しいTerraform stateがある場合のみ、sensitive output `test_user_credentials`から取得できます。デモ終了時にユーザーと`random_password` resourceをdestroyし、次回applyで再作成すれば新しい値になります。通常のデモサイクル外でのローテーションは、明示指示がない限り行いません。
+
 複数ユーザーを行き来する場合、Entra IDのアカウント選択画面で「別のアカウントを使用する」を選ぶか、ブラウザのプライベートウィンドウを使うとスムーズです。
 
 ## テストデータの生成タイミングと構造

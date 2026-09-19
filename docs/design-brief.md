@@ -190,6 +190,12 @@ Konnect Control Plane
 
 これらはenvironment固有入力であり、self-hosted Data Planeを使うアーキテクチャ自体の再確認事項ではない。
 
+2026-09-20確定済み入力:
+
+- Konnect geo: US（North America）。既存Control Plane 162件のendpointがすべてUS geoであることをread-only APIで確認
+- Control Plane: `azure-obo-demo`を新規作成予定（同名の既存Control Planeなし）
+- Gateway entityの管理: 既存decKファイルを維持し、Azure/Entra用TerraformへKonnect resourceを追加しない
+
 ## 10. 実装順序
 
 1. cleanなfeature branchまたはworktreeを用意する。

@@ -34,6 +34,13 @@ Chat UI（Next.js）はKongの認証を全面的に信頼し、独自のOAuthク
 - **デモAPI（Customer Inquiry/Customer Details）**: TypeScript + Bun
 - **実LLM**: Azure OpenAI（`ai-proxy-advanced`経由で抽象化）
 
+## Konnect bootstrap入力
+
+- **Geo**: US（North America、Konnect API: `https://us.api.konghq.com`）
+- **Control Plane名**: `azure-obo-demo`
+- **Data Plane**: このリポジトリのDocker Composeで起動するself-hosted Data Plane
+- **管理境界**: Control Plane作成はKonnect platform操作、Gateway entityは既存の`kong/*.yaml`をdecKで管理する。既存TerraformのscopeはAzure/Entraのまま拡張しない
+
 ## デモAPI（Customer Inquiry/Customer Details）
 
 `services/demo-api`（Bun/TypeScript）が、design-brief 2節のAPI仕様をひとつのHTTPサーバーとして実装しています。
@@ -78,7 +85,7 @@ Terraform（`terraform/`配下）は、クライアントシークレット等�
    ```bash
    export DECK_KONNECT_TOKEN='<personal-or-system-access-token>'
    export DECK_KONNECT_ADDR='https://us.api.konghq.com'
-   export DECK_KONNECT_CONTROL_PLANE_NAME='<control-plane-name>'
+   export DECK_KONNECT_CONTROL_PLANE_NAME='azure-obo-demo'
 
    cd terraform
    export DECK_ENTRA_ISSUER="https://login.microsoftonline.com/$(terraform output -raw entra_tenant_id)/v2.0"
