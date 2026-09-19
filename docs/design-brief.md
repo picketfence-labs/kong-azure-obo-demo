@@ -192,8 +192,9 @@ Konnect Control Plane
 
 2026-09-20確定済み入力:
 
-- Konnect geo: US（North America）。既存Control Plane 162件のendpointがすべてUS geoであることをread-only APIで確認
-- Control Plane: `azure-obo-demo`を新規作成予定（同名の既存Control Planeなし）
+- Konnect organization: `hashi-sandbox`
+- Konnect geo: North America / US（利用者指定）
+- Control Plane名: `azure-obo-demo`。対象Orgでの既存同名CP有無とIDは、`hashi-sandbox`へ認証した後に確認する
 - Gateway entityの管理: 既存decKファイルを維持し、Azure/Entra用TerraformへKonnect resourceを追加しない
 
 ## 10. 実装順序

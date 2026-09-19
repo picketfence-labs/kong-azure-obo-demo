@@ -36,7 +36,8 @@ Chat UI（Next.js）はKongの認証を全面的に信頼し、独自のOAuthク
 
 ## Konnect bootstrap入力
 
-- **Geo**: US（North America、Konnect API: `https://us.api.konghq.com`）
+- **Organization**: `hashi-sandbox`
+- **Geo**: North America / US（Konnect API: `https://us.api.konghq.com`）
 - **Control Plane名**: `azure-obo-demo`
 - **Data Plane**: このリポジトリのDocker Composeで起動するself-hosted Data Plane
 - **管理境界**: Control Plane作成はKonnect platform操作、Gateway entityは既存の`kong/*.yaml`をdecKで管理する。既存TerraformのscopeはAzure/Entraのまま拡張しない

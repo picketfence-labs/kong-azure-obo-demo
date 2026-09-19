@@ -165,3 +165,21 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **確認結果**: Konnectの既存Control Plane 162件はすべてUS geoで、`azure-obo-demo`という同名CPは存在しなかった。新規CP名は`azure-obo-demo`、geoはUS（North America）とする
 - **password lifecycle**: テストユーザーのpasswordはTerraformの`random_password.test_user`が作成時に生成し、sensitive outputとしてのみ参照する。ユーザーをデモごとに作成・destroyする運用では再作成時に新しい値となる
 - **対処・運用方針**: passwordを文書へ平文保存しない。通常のデモサイクル外のローテーションは利用者の明示指示なしに実行しない。既存stateが空の問題は別途解消が必要
+
+## 2026-09-20 08:17 JST `gh pr edit`がProjects Classic関連GraphQLエラーで失敗
+- **何を期待していたか**: PR #15の本文を、確定したUS geo・Control Plane名・password運用へ更新できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `GraphQL: Projects (classic) is being deprecated in favor of the new Projects experience`で本文更新前に失敗した
+- **原因**: `gh pr edit`がPR本文編集と無関係なProjects ClassicのGraphQL fieldも取得し、GitHub側の廃止仕様に当たったため
+- **対処・回避方法**: Pull Requests REST APIのPATCHへ切り替え、本文のみを更新する
+
+## 2026-09-20 08:20 JST Konnect MCPが対象外Organizationを参照していた
+- **何を期待していたか**: 利用者指定の対象Org `hashi-sandbox`についてControl Plane一覧とgeoを確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `get_organizations_me`で、現在のKonnect MCPが`Kong Inc. - SE Team`（login path `se-kong`）を参照していることが判明した。08:16の「162 CPは全てUS、同名CPなし」という確認はこの別Orgに対する結果だった
+- **原因**: live stateを読む前にMCP credentialのOrganization scopeを確認しなかったため
+- **対処・回避方法**: 08:16の結果を対象Orgの証跡として使用しない。設計文書は利用者指定の`hashi-sandbox`へ訂正し、同名CP有無・endpoint・IDは対象Orgへ認証した後に再確認する
+
+## 2026-09-20 08:20 JST `kongctl`で対象Organizationを代替確認できない
+- **何を期待していたか**: `kongctl get organization`と`kongctl get me`で、MCPとは別に現在のOrganization scopeをread-only確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: sandbox内では`~/.config/kongctl/logs/kongctl.log: operation not permitted`、sandbox外では`authentication token not available`で停止した
+- **原因**: sandboxのログ書込制約に加え、ローカル`kongctl`にPATまたはlogin sessionが設定されていないため
+- **対処・回避方法**: `hashi-sandbox`用credentialを明示的に接続するまで、`kongctl`からのlive確認・変更は行わない
