@@ -118,3 +118,45 @@
 
 ## 2026-09-01 デモAPI: テストデータ生成方法の記録
 CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記録。`services/demo-api/src/data.ts`の100人分の顧客データ（マイナンバーを模した12桁の値を含む）は、固定シード（42）のmulberry32擬似乱数生成器のみから機械的に組み立てた完全な架空データ。実在の人物・実在の番号を一切参照していない。氏名は姓・名それぞれ10種の一般的な単語からの組み合わせ、マイナンバー相当値は12桁の乱数文字列（チェックデジット等の実仕様は再現していない）。
+
+## 2026-09-20 07:48 JST `gh pr merge --delete-branch`がローカルブランチ削除だけ失敗
+- **何を期待していたか**: PR #14をsquash mergeし、リモート・ローカルの作業ブランチも後処理として削除できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: PRは正常にマージされたが、`failed to delete local branch docs/konnect-update-design-brief: ... used by worktree .../kong-azure-obo-demo-konnect-update`でコマンドが非ゼロ終了した
+- **原因**: `docs/konnect-update-design-brief`ブランチが別worktreeでcheckout中のため、Gitがローカルブランチ削除を拒否した
+- **対処・回避方法**: `gh pr view 14`でPRの`MERGED`状態とmerge commit `a79371b350c9490c59e94450b92f94617b21deca`を確認した。別worktreeとローカルブランチは破壊せず保持し、実装は更新後の`main`を基点とする
+
+## 2026-09-20 07:52 JST sandbox内からDocker socketへ接続できない
+- **何を期待していたか**: `docker image inspect kong/kong-gateway:3.16.0.0`で対象イメージのローカル有無をread-only確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `permission denied while trying to connect to the docker API at unix:///Users/shinichi.hashitanikonghq.com/.docker/run/docker.sock`で失敗した
+- **原因**: Codex sandboxからユーザーのDocker socketへのアクセスが許可されていないため
+- **対処・回避方法**: Docker操作自体の失敗とは判断せず、同じread-onlyコマンドをsandbox外の承認済み実行として再試行する
+
+## 2026-09-20 07:54 JST `TESTING.md`にテストアカウントの平文パスワードが残存
+- **何を期待していたか**: 認証情報がコード・文書・commit履歴へ平文保存されていないこと
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `TESTING.md`のテストユーザー表に、Entra IDデモアカウント3件のパスワードが平文で記載されていた
+- **原因**: 初回実機検証時の操作手順へ認証情報を直接記載していたため
+- **対処・回避方法**: 現在の文書から値を除去し、安全な保管先から取得する表記へ変更した。既存commit履歴には残るため、対象パスワードのローテーションは別途必要
+
+## 2026-09-20 07:55 JST ローカル環境に`gitleaks`が未導入
+- **何を期待していたか**: `gitleaks`で現在の作業ツリーに対するsecret scanを実行できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `gitleaks version`が`No such file or directory`で失敗した
+- **原因**: ローカル環境に`gitleaks`実行ファイルがインストールされていないため
+- **対処・回避方法**: 今回はリポジトリ内の既知secret名・旧credential記載箇所を直接検索し、差分レビューで平文値が追加されていないことを確認する。専用scanner導入は本PRのスコープ外
+
+## 2026-09-20 07:57 JST sandbox内でTerraform provider schemaを読み込めない
+- **何を期待していたか**: `terraform -chdir=terraform validate`で既存Terraform構成の妥当性を確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `azuread`、`azurerm`、`random`の各providerで`Unrecognized remote plugin message`と`Failed to read any lines from plugin's stdout`が発生した。provider binaryのarchitecture・permission自体は正しかった
+- **原因**: Codex sandbox内でTerraform provider subprocessの起動またはplugin handshakeが制限された可能性が高い
+- **対処・回避方法**: 構成エラーとは判断せず、同じvalidateをsandbox外の承認済み実行として再試行する
+
+## 2026-09-20 07:57 JST Terraform planが既存デモを認識せず26件すべてを新規作成予定
+- **何を期待していたか**: 既存Azure/EntraリソースとTerraform stateが対応し、今回のCompose変更に伴うTerraform差分がないこと
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `terraform -chdir=terraform plan`が`Plan: 26 to add, 0 to change, 0 to destroy`を返した。`terraform/terraform.tfstate`とrepository rootの`terraform.tfstate`はいずれも約180 bytesで、`terraform state list`は空だった
+- **原因**: 現在ローカルにあるTerraform stateが空で、過去に作成したAzure/Entraリソースとのstate対応が失われているか、別のstate保存先を使っていた可能性がある
+- **対処・回避方法**: `terraform apply`は実行しない。既存resourceの所在と正しいstateを確認し、必要ならimport/recovery方針を別途決めるまでTerraformによる変更を禁止する
+
+## 2026-09-20 07:59 JST sandbox内でGit index lockを作成できない
+- **何を期待していたか**: 変更対象を明示した`git add`で6ファイルだけをstageできること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `.git/index.lock: Operation not permitted`でstage前に失敗した
+- **原因**: Codex sandboxではrepositoryの`.git`配下への書き込みが許可されていないため
+- **対処・回避方法**: 対象pathを明示した同じ`git add`をsandbox外の承認済み実行として再試行する。未追跡の`AGENTS.md`はstage対象に含めない

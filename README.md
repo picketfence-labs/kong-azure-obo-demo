@@ -1,6 +1,6 @@
-# Kong Gateway 3.16 (beta) — Entra ID OBO × AI MCP Proxy ACL デモ
+# Kong Gateway 3.16 — Entra ID OBO × AI MCP Proxy ACL デモ
 
-Chat AIエージェントからMCP経由でバックエンドAPIへアクセスするデモです。「エージェントとしてログインする権限」と「個々のAPI（Tool）を実行する権限」を分離し、Kong Gateway 3.16のOpenID ConnectプラグインのOBO（On-Behalf-Of）機能でトークン交換、AI MCP ProxyのACL機能でTool単位の認可を行う一連の流れを実地検証します。**Konnectは使用しません**（Kong Gateway単体、Postgres backed）。
+Chat AIエージェントからMCP経由でバックエンドAPIへアクセスするデモです。「エージェントとしてログインする権限」と「個々のAPI（Tool）を実行する権限」を分離し、Kong Gateway 3.16のOpenID ConnectプラグインのOBO（On-Behalf-Of）機能でトークン交換、AI MCP ProxyのACL機能でTool単位の認可を行う一連の流れを実地検証します。Kong GatewayはDocker Compose上のself-hosted Data Planeとして起動し、Konnect Control Planeから設定とライセンスを受信します。
 
 着手前の基本設計は [docs/design-brief.md](./docs/design-brief.md) を参照してください。個別の設計判断（検討した選択肢・判断基準）は [docs/decisions/](./docs/decisions/) に記録します。
 
@@ -20,13 +20,15 @@ Chat UI（Next.js）はKongの認証を全面的に信頼し、独自のOAuthク
 
 ## 必要なもの
 - Docker / Docker Compose
-- Kong Enterpriseライセンス
+- Kong KonnectのorganizationとGateway Control Plane
+- Control Planeへ登録済みのData Plane用mTLS certificate/key
+- decK >= 1.40.0と対象Control Planeを操作できるKonnect token
 - Terraform >= 1.5（`azuread` provider）
 - Microsoft Entra IDテナントと管理者権限（App Registration・Security Group作成のため）
 - Azure OpenAIリソース
 
 ## 技術スタック
-- **Kong Gateway**: `kong/kong-gateway-dev:pr-21082-ubuntu`（ベータ、Entra ID OBO対応ビルド）、Postgres backed、decKで宣言的管理
+- **Kong Gateway**: `kong/kong-gateway:3.16.0.0`、Konnect管理のself-hosted Data Plane（DB-less）、decKで宣言的管理
 - **Entra ID連携**: Terraform（`azuread` provider）
 - **Chat UI/エージェント**: Next.js（App Router）+ Vercel AI SDK
 - **デモAPI（Customer Inquiry/Customer Details）**: TypeScript + Bun
@@ -66,9 +68,18 @@ Terraform（`terraform/`配下）は、クライアントシークレット等�
 ### Kong Gateway（decK宣言的設定）
 `kong/`配下がRoute別のdecK state file（`login-route.yaml`: Chat UIログイン、`mcp-route.yaml`: OBO+ACL、`llm-route.yaml`: Azure OpenAI抽象化）。秘匿値は平文で書かず、decKの環境変数テンプレート`${{ env "DECK_XXX" }}`（`DECK_`プレフィックス必須）で参照する。
 
-1. Docker Composeを起動: `cp .env.example .env` を編集の上 `docker compose up -d`（Kong Enterpriseライセンスが必要）
-2. Terraform outputから必要な値を環境変数へ展開:
+1. Konnectで既存Control Planeを選ぶか新規作成し、Data Plane Nodes画面から次を取得する。
+   - Control Plane endpointのhost
+   - Telemetry endpointのhost
+   - Control Planeへ登録済みのData Plane用mTLS certificate/key
+2. `cp .env.example .env`を実行し、上記hostとcertificate/keyのローカルパスを設定する。certificate/keyはgitignore済みの`secrets/`配下へ置き、commitしない。
+3. `docker compose config`で展開結果を確認してから、`docker compose up -d`でData Planeを起動する。local Postgres、migrations、Admin API、`KONG_LICENSE_DATA`は使用しない。
+4. Terraform outputとKonnect接続情報から、decKが使う環境変数を設定する:
    ```bash
+   export DECK_KONNECT_TOKEN='<personal-or-system-access-token>'
+   export DECK_KONNECT_ADDR='https://us.api.konghq.com'
+   export DECK_KONNECT_CONTROL_PLANE_NAME='<control-plane-name>'
+
    cd terraform
    export DECK_ENTRA_ISSUER="https://login.microsoftonline.com/$(terraform output -raw entra_tenant_id)/v2.0"
    export DECK_MIDDLE_TIER_CLIENT_ID=$(terraform output -raw middle_tier_client_id)
@@ -84,8 +95,13 @@ Terraform（`terraform/`配下）は、クライアントシークレット等�
    export DECK_SESSION_SECRET=$(openssl rand -base64 32)
    cd ..
    ```
-3. ローカルでの構文・スキーマ検証（Kongへの接続不要）: `deck file validate kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`
-4. 実際のKongへ反映: `deck gateway sync kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`
+5. ローカルでの構文検証（Kongへの接続不要）: `deck file validate kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`
+6. 対象Control Planeに対するonline validationと差分確認:
+   ```bash
+   deck gateway validate kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml
+   deck gateway diff kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml
+   ```
+7. 差分をレビューし、人間の明示承認を得た後だけ`deck gateway sync kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`で反映する。
 
 ネットワーク分離の考え方（MCP/LLM Routeをブラウザから到達不可にする方式と、その実際の限界）は[ADR-0002](./docs/decisions/0002-mcp-llm-route-network-isolation.md)を参照。
 
@@ -111,6 +127,6 @@ bun run dev   # http://localhost:3000 単体では認証ヘッダーが無いた
 
 ## クリーンアップ
 ```bash
-docker compose down -v
+docker compose down
 terraform destroy
 ```
