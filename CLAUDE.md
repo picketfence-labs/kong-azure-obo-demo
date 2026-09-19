@@ -3,10 +3,10 @@
 このファイルはClaude Codeがこのリポジトリで作業する際のガイドです。
 
 ## このリポジトリについて
-Kong Gateway 3.16（ベータ）のOpenID Connectプラグイン新機能「Entra ID OBO（On-Behalf-Of）」を、AI MCP ProxyのACL機能・AI Proxy AdvancedによるLLMアクセス抽象化と組み合わせて実地検証するデモ。Chat AIエージェント→Kong Gateway→（OBOでトークン交換）→MCP化されたバックエンドAPI、という流れを構築する。**Konnectは使用しない**（Kong Gateway単体、Postgres backed）。
+Kong Gateway 3.16正式版のOpenID Connectプラグイン「Entra ID OBO（On-Behalf-Of）」を、AI MCP ProxyのACL機能・AI Proxy AdvancedによるLLMアクセス抽象化と組み合わせて検証するデモ。現在の作業は、既存実装を`kong/kong-gateway:3.16.0.0`とKonnect管理のself-hosted Data Plane（Docker Compose、DB-less）へ移行すること。
 
 ## 基本設計
-[docs/design-brief.md](./docs/design-brief.md) を必ず参照すること。Projectゴール・要件（現在＋将来）・アーキテクチャ（Kongがフロントする3系統のRoute/Service構成、Entra IDアプリ構成、OBOの実装詳細）・技術スタック・検証方法・成果物を記載済み。全論点はPicketfence Labs Obsidian Vault側とのヒアリングで確定済みで、着手前の再確認は不要（ただし実装中に新たな判断ポイントが見つかった場合は下記「アーキテクチャ上の分岐点」の手順に従う）。
+[docs/design-brief.md](./docs/design-brief.md) を必ず参照すること。Projectゴール・要件（現在＋将来）・アーキテクチャ・技術スタック・スモークテスト・成果物を記載済み。アーキテクチャは確定済みだが、Konnect region / Control Plane ID等の環境固有入力は着手時に確定する。新たな判断ポイントが見つかった場合は下記「アーキテクチャ上の分岐点」の手順に従う。
 
 ## 開発フロー
 - `main`ブランチはbranch protection有効化を試みる（PR必須、`enforce_admins: true`）。ただし本リポジトリはprivate。**private + GitHub Freeプランではbranch protection APIが403で有効化できない既知の制約がある**（有効化できなかった場合はこのCLAUDE.mdの運用規約として「直接pushしない」ことを守ること）
@@ -27,14 +27,14 @@ Kong Gateway 3.16（ベータ）のOpenID Connectプラグイン新機能「Entr
 判断ポイントかどうかに関わらず、日常的な小さな想定外（エラー、ドキュメントと異なる挙動、想定した設定で動かなかった等）も対象。
 1. 遭遇したら**その場で**`docs/troubleshooting-log.md`に追記する（後から思い出して書かない、大したことではないと省略しない）
 2. 各ステップの区切り・完了報告のタイミングで、このログの新規追加分を要約して報告に含める
-3. 特にKong 3.16のベータ機能（`openid-connect`のOBO、`ai-mcp-proxy`との連携）は未リリース機能のため、公式ドキュメントとの乖離やドキュメント自体の不在が起こりやすい。実際に動かして確認した挙動を優先して記録する
+3. Kong 3.16正式版への移行とKonnect連携では、旧ベータ版・local Postgres構成との差分や公式ドキュメントとの乖離が起こりうる。実際に動かして確認した挙動を優先して記録する
 
 ## エスカレーション条件（必ず確認を取る）
-1. 不可逆・破壊的な操作（`terraform apply`・`terraform destroy`、Entra IDのApp Registration/Security Groupの削除・再作成、decKの`sync`による本番相当環境への反映）
-2. 継続的にコストが発生する操作（Azure OpenAIの利用、Kong Enterpriseライセンスの消費等）
+1. 不可逆・破壊的な操作（`terraform apply`・`terraform destroy`、Entra ID resourceの削除・再作成、KonnectへのdecK sync、Dashboard apply、MCP Registry publish、Catalog create/update）
+2. 継続的にコストが発生する操作（Azure OpenAIの利用等）
 3. 要件の曖昧さが設計の方向性に影響する場合
 4. スコープ逸脱
-5. 機密情報の扱いに確信が持てない場合（Entra IDのclient secret、Azure OpenAI APIキー、Postgres認証情報、マイナンバー等を模したテストデータ等）
+5. 機密情報の扱いに確信が持てない場合（Entra IDのclient secret、Azure OpenAI APIキー、Konnect token、mTLS certificate private key、マイナンバー等を模したテストデータ等）
 
 ## 自己判断で進めてよい条件
 1. 読み取り専用の調査・確認作業（`terraform plan`、`deck diff`、`az`の参照系コマンド等）
@@ -55,21 +55,23 @@ Kong Gateway 3.16（ベータ）のOpenID Connectプラグイン新機能「Entr
 
 ## テスト方針
 - テストケースの導出は`docs/design-brief.md`（要件から直接導出済み）を参照。後付けにしない
-- `terraform validate`＋`terraform plan`出力のレビュー、`deck validate`/`deck diff`のレビューを最低限必須とする
-- `docs/design-brief.md`の「5. 検証方法」にあるテストケースを実際に確認する
+- `terraform validate`＋`terraform plan`出力のレビュー、`deck gateway validate`/`deck gateway diff`のレビューを最低限必須とする
+- `docs/design-brief.md`の「7. スモークテスト」だけを実施する。既存のフルPlaywright E2Eや全回帰ケースは今回のスコープ外
 
 ## セキュリティ・クラウド認証
 - Entra IDのApp RegistrationのService Principal/クライアントシークレットには、タスク遂行に必要な最小限の権限のみを付与する（PoLP）
-- 認証情報（Entra IDのclient secret、Azure OpenAI APIキー、Postgres認証情報等）はコード・CLAUDE.md・コミット履歴に平文で残さない
+- 認証情報（Entra IDのclient secret、Azure OpenAI APIキー、Konnect token、mTLS certificate private key等）はコード・CLAUDE.md・コミット履歴に平文で残さない
 - Customer Inquiry/Customer Detailsのテストデータ（マイナンバー等を模した項目を含む）は、必ず**アルゴリズム的にランダムな架空データ**として生成し、実在する番号・個人情報を一切含めないこと。生成方法は`docs/troubleshooting-log.md`または`docs/decisions/`に一言記録する
 - 長期間有効な静的な認証情報より、可能な範囲で一時的な認証方式を優先する
 
 ## Kong Gateway関連の技術メモ
-- イメージ: `kong/kong-gateway-dev:pr-21082-ubuntu`（ベータ、Entra ID OBO対応）
-- `openid-connect`プラグインの`token_exchange.grant_type=jwt_bearer`+`provider=microsoft`でEntra ID OBOを実装（詳細は`docs/design-brief.md`「3. アーキテクチャ」参照）
+- イメージ: `kong/kong-gateway:3.16.0.0`（正式版、Entra ID OBO対応）
+- local runtimeはKonnect管理のself-hosted Data Plane（Docker Compose、`KONG_DATABASE=off`）。local Postgres、migrations、license file、`KONG_LICENSE_DATA`、host公開Admin APIは廃止する
+- `openid-connect`プラグインの`token_exchange.grant_type=jwt_bearer`+`provider=microsoft`でEntra ID OBOを実装（詳細は`docs/design-brief.md`「5. アーキテクチャ」参照）
 - `ai-mcp-proxy`は`conversion-listener`モードで開始（将来Tool追加時に`listener`+`conversion-only`へ作り替える）
 - `ai-proxy-advanced`でAzure OpenAIへのアクセスを抽象化
-- Kong Gateway自体の設定はdecKの宣言的YAMLで管理（Terraformの対象外）
+- Kong Gateway entityはdecKの宣言的YAMLで管理し、Konnect Control Planeへvalidate/diff/syncする（Terraformの対象外）
+- Konnect Observability Dashboard、MCP Registry、Catalog AI Modelのdefinitionとread-back手順を成果物に含める
 - Kong公式の[`Kong/ai-marketplace`](https://github.com/Kong/ai-marketplace)（tech preview）に、decKのstate file・validate/diff/sync操作を支援する`deck-gateway`スキルが含まれる。導入を検討する場合は`/plugin marketplace add kong/ai-marketplace` → `/plugin install kong-konnect@ai-marketplace`（未使用検証、必要になったタイミングで判断する）
 - terraform-mcp-serverは導入しない（Picketfence Labs Vaultの一般方針。ローカルの`.tf`＋`terraform`コマンド実行のみで運用し、HCP Terraform等のリモート管理は使わない）
 
