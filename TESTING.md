@@ -42,8 +42,11 @@
 - 利用者の明示承認後、上記保存planをapplyし、Custom Dashboard `Azure OBO Demo Observability`（ID `312c1e16-e4b5-4794-a522-57037e30737b`）を作成。結果は`1 added, 0 changed, 0 destroyed`
 - apply後のstate read-backでdashboard名、ID、Control Plane preset filter、22 tileを確認。`terraform/konnect/terraform.tfstate`はmode `0600`
 - apply後の`terraform -chdir=terraform/konnect plan -detailed-exitcode`: `No changes`
+- 利用者のUI確認結果に基づき、全22 tileの個別Time RangeをHCLから削除。保存planのJSONで明示Time Range 0件、Dashboard継承扱い22件、dimension差分0件を確認
+- 利用者の明示承認後、Time Range継承変更の保存planをapply。既存Dashboard 1件をin-place更新し、結果は`0 added, 1 changed, 0 destroyed`
+- 更新後のstate read-backで同じDashboard IDと22 tileを確認。providerはDashboard全体から解決された有効Time Rangeを22件のcomputed値として保持し、後続のlive planは`No changes`。stateはmode `0600`
 
-未実施: Konnect UI上でのAPI/MCP/LLM各datasetへのsmoke traffic反映確認。Dashboardへの直接URLは対象`hashi-sandbox`ではなく`Create an Organization`へredirectされたため、誤ったOrgを作成せず停止した。Dashboard resourceの作成と構成収束はTerraformのread-backと再planで確認済み。Azure OpenAI単体経路とログイン/OBO/ACLスモークテストは実測済み。
+利用者によるKonnect UI上のDashboard確認は完了。Computer Useからの独立したAPI/MCP/LLM各dataset反映確認は、対象`hashi-sandbox`ではなく`Create an Organization`へredirectされるため未実施。Dashboard resourceの更新と構成収束はTerraformのread-backと再planで確認済み。Azure OpenAI単体経路とログイン/OBO/ACLスモークテストは実測済み。
 
 ## アクセス先
 
