@@ -31,7 +31,10 @@ Konnect ObservabilityのCustom Dashboardを再現可能なコードとして管�
 - beta providerの適用範囲をDashboardだけに限定すれば、既存の安定版provider所有resourceへの影響を抑えられる。
 
 ## 想定していたこと vs 実際どうだったか
-実装・apply・read-back後に追記する。
+- `kong/konnect-beta` 0.22.0でDashboardだけを追加する保存planは、既存Konnect resourceへの変更なしで`1 to add, 0 to change, 0 to destroy`となった。
+- 保存planのapplyは成功し、22 tileを持つ`Azure OBO Demo Observability`（ID `312c1e16-e4b5-4794-a522-57037e30737b`）が作成された。state read-backでname、ID、Control Plane preset filterを確認し、後続planは`No changes`となった。
+- Top N chartのdimension上限は生成文書の最大3ではなくprovider schema上は最大2だったため、実行時schemaに合わせて各queryを2 dimensionにした。またproviderが補完する小数既定値を宣言へ明示し、apply後のdriftを防いだ。
+- Konnect UIでの目視確認は、Computer UseのChrome sessionが対象`hashi-sandbox`ではなく新規Organization作成画面へredirectされたため未完了。誤ったOrganizationは作成していない。
 
 ## 影響・トレードオフ
 - Dashboardのschema互換性はbeta provider versionに依存するためversion constraintとlock fileを固定する。
