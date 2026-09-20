@@ -261,3 +261,9 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: 想定パス`picketfence-labs/LOCAL_REPO/kong-ee`が存在せず、同じ親directoryには`kong-mcp-testbed`のみ存在した
 - **原因**: この端末/workspaceには`kong-ee` repositoryが配置されていない
 - **対処・回避方法**: local sourceを前提にせず、Kong公式ドキュメントとlive schema/decK validateを一次情報として調査する
+
+## 2026-09-20 10:24 JST 生成済み実値によるdecK online validateが承認ゲートで拒否された
+- **何を期待していたか**: Terraform生成の`secrets/deck.env`を読み込み、`azure-obo-demo` Control Planeに対してonline validateを実行できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: 実行前の承認レビューで、Entra client secretやAzure OpenAI API key等をKonnectへ送ることに対する明示承認が不足しているとして拒否された。プロセスは起動されず、Konnectへのリクエストや機密値送信は発生していない
+- **原因**: 利用者の「進めてください」はTerraform applyと再syncの承認として扱ったが、機密設定値をonline validate/sync payloadとしてKonnectへ送る点を個別に明示していなかった
+- **対処・回避方法**: 回避や間接実行は行わず停止した。送信先が`hashi-sandbox` USの`azure-obo-demo`であり、送信対象にEntra client secret、Azure OpenAI API key、session secret、OIDC cache saltが含まれることを示し、利用者から明示承認を得てから再実行する

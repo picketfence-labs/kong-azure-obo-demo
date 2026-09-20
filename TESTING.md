@@ -26,8 +26,9 @@
 - 利用者の明示承認後に`deck gateway sync`: Service 3件、Route 3件、Plugin 4件の計10件を作成。更新0件、削除0件
 - sync直後の同一diff: `openid-connect` plugin 2件に、Gateway自動生成`cache_tokens_salt`と`token_exchange.cache.ttl = null`の正規化差分が残った。再syncは停止し、[ADR-0005](./docs/decisions/0005-oidc-cache-salt-and-token-exchange-ttl.md)の修正を作成
 - 修正後の`terraform validate`: 成功。保存planはcache salt 2件の作成と`secrets/deck.env`の置換だけ（`3 to add, 0 to change, 1 to destroy`）。placeholder saltでのdecK local/online validateも成功し、live diffは想定どおりOIDC plugin 2件の更新のみ
+- 利用者の明示承認後にADR-0005の保存planをapplyし、`3 added, 0 changed, 1 destroyed`。destroyは`secrets/deck.env`のローカル置換のみ。後続planは`No changes`で、state、backup、生成fileはmode `0600`。生成済み実値での`deck file validate`も成功
 
-未実施: ADR-0005のTerraform applyとdecK再sync、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。
+未実施: 生成済み実値によるdecK online validate/diff、OIDC plugin 2件の再sync、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。online操作は機密値をKonnectへ送る個別の明示承認待ち。
 
 ## アクセス先
 
