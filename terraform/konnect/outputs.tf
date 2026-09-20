@@ -37,3 +37,13 @@ output "docker_compose_env_path" {
   description = "Generated env fragment to pass after .env with Docker Compose."
   value       = local_sensitive_file.docker_compose_env.filename
 }
+
+output "dashboard_id" {
+  description = "Konnect Observability dashboard ID."
+  value       = konnect_dashboard.azure_obo_demo.id
+}
+
+output "dashboard_url" {
+  description = "Konnect Observability dashboard URL."
+  value       = "https://cloud.konghq.com/${local.konnect_ui_region}/analytics/dashboards/${konnect_dashboard.azure_obo_demo.id}"
+}

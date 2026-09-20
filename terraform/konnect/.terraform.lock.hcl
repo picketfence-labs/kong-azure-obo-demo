@@ -57,3 +57,18 @@ provider "registry.terraform.io/kong/konnect" {
     "zh:a0857a9fdace48c26a77746928c769d0051f933340201b12df7795cb44d5dc10",
   ]
 }
+
+provider "registry.terraform.io/kong/konnect-beta" {
+  version     = "0.22.0"
+  constraints = "~> 0.22.0"
+  hashes = [
+    "h1:UH5aojKPHnsnzpQ0OreuvBQ2mw0InywwH/rAwnHdFGs=",
+    "zh:350eae87d908d535e143c10a350e20ecca512104a7ce256f16a524528989479f",
+    "zh:4c713e68b9daef2cb353be9164a97c5302899642841bcdad9c30860b03daa903",
+    "zh:78bbc65d71e8e183c02559d48dff606c59bb1ff88b7907bfa75996d9d5c97248",
+    "zh:890df766e9b839623b1f0437355032a3c006226a6c200cd911e15ee1a9014e9f",
+    "zh:b52b0141cb72015a6f01ee84668aa726f46a3e892af374fdc45998ec454c3ffb",
+    "zh:b9ad6875860642a024b01d247d7940929a88f989349a820eed50ccb045c625a1",
+    "zh:d4541279a2313c4ab8ad9866ede62e12c3f1b9962250c2e0582ebd45ed106e15",
+  ]
+}

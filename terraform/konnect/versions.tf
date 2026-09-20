@@ -6,6 +6,10 @@ terraform {
       source  = "kong/konnect"
       version = "~> 3.22"
     }
+    konnect-beta = {
+      source  = "kong/konnect-beta"
+      version = "~> 0.22.0"
+    }
     local = {
       source  = "hashicorp/local"
       version = "~> 2.5"

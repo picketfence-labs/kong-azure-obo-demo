@@ -15,6 +15,7 @@ crash.log
 crash.*.log
 *.tfvars
 !*.tfvars.example
+*.tfplan
 # .terraform.lock.hcl はコミット対象（プロバイダーバージョン固定のため、意図的に除外しない）
 
 # Node / Bun

@@ -97,10 +97,13 @@ cd ../..
 - USリージョンのself-managed Control Plane `azure-obo-demo`
 - Docker Compose Data Plane用のRSA key / self-signed client certificate
 - Control Planeへのclient certificate登録
+- Custom Dashboard `Azure OBO Demo Observability`
 - `secrets/konnect/tls.crt`、`secrets/konnect/tls.key`
 - Composeへ渡す`secrets/konnect/compose.env`
 
 `terraform/konnect/terraform.tfstate`と`secrets/`はgitignore対象。stateにも秘密鍵が含まれるため、共有・commitしない。
+
+Dashboardのtile構成、client identityの意味、確認手順は[Konnect Observability Dashboard](./docs/observability-dashboard.md)を参照。
 
 ### Kong Gateway（decK宣言的設定）
 `kong/`配下がRoute別のdecK state file（`login-route.yaml`: Chat UIログイン、`mcp-route.yaml`: OBO+ACL、`llm-route.yaml`: Azure OpenAI抽象化）。秘匿値は平文で書かず、decKの環境変数テンプレート`${{ env "DECK_XXX" }}`（`DECK_`プレフィックス必須）で参照する。
