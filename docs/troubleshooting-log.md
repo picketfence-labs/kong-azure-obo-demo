@@ -358,3 +358,21 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: `git add`が`.git/index.lock: Operation not permitted`で終了した
 - **原因**: workspace sandboxでは`.git`がread-onlyであり、Git indexの更新が許可されていない
 - **対処・回避方法**: 同じ`git add`/`commit`/`push`をsandbox外の承認済み実行として再試行する
+
+## 2026-09-20 15:03 JST sandbox内でGit fetchとTerraform provider schema取得が失敗した
+- **何を期待していたか**: マージ済みPRの取得と、インストール済みKonnect providerのDashboard resource対応有無をread-onlyで確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `git fetch`は`.git/FETCH_HEAD: Operation not permitted`、`terraform providers schema -json`は全providerで`Unrecognized remote plugin message`となった
+- **原因**: sandboxでは`.git`がread-onlyであり、provider subprocessのplugin handshakeも許可されなかった
+- **対処・回避方法**: 同じcommandをsandbox外の承認済み実行として再試行した。PR #22を含む`origin/main`へfast-forwardでき、安定版`kong/konnect` 3.23.0にDashboard resourceがないことをprovider schemaで確認した
+
+## 2026-09-20 15:06 JST GitHub CLIでKong orgの公開provider文書を取得できなかった
+- **何を期待していたか**: `gh api`でKong公式beta providerの公開`dashboard.md`をread-only取得できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: Kong organizationのSAML enforcementによりHTTP 403となり、CLI tokenへのSSO承認URLが返った
+- **原因**: 現在のGitHub CLI OAuth tokenがKong organizationのSSO承認を持たないため
+- **対処・回避方法**: OAuth scopeやSSO設定は変更せず、公開raw URLと匿名Git cloneで同じ一次情報を取得した
+
+## 2026-09-20 15:08 JST DashboardのTop N dimension上限がprovider文書とschemaで一致しなかった
+- **何を期待していたか**: `konnect_dashboard`のTop N chartがprovider文書どおり最大3 dimensionを受け付けること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `terraform validate`でAPI、Agentic、LLM queryの3 dimension指定がすべて`list must contain at most 2 elements`となった
+- **原因**: `kong/konnect-beta` 0.22.0の生成文書はTop Nを最大3 dimensionと説明する一方、実際のprovider schema validatorは各queryのdimension数を最大2に制限している
+- **対処・回避方法**: 実行時schemaを正として各Top N queryを2 dimensionへ削減した。client識別は`principal`と`application`、MCPは`principal`と`mcp_method`または`mcp_method`と`mcp_tool_name`を組み合わせる

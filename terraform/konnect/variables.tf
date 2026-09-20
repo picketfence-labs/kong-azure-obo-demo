@@ -16,6 +16,12 @@ variable "control_plane_description" {
   default     = "Entra ID OBO and AI MCP Proxy demo"
 }
 
+variable "dashboard_name" {
+  description = "Name of the Konnect Observability dashboard for this demo."
+  type        = string
+  default     = "Azure OBO Demo Observability"
+}
+
 variable "data_plane_certificate_validity_hours" {
   description = "Lifetime of the locally generated Data Plane client certificate."
   type        = number
