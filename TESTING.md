@@ -29,9 +29,17 @@
 - 利用者の明示承認後にADR-0005の保存planをapplyし、`3 added, 0 changed, 1 destroyed`。destroyは`secrets/deck.env`のローカル置換のみ。後続planは`No changes`で、state、backup、生成fileはmode `0600`。生成済み実値での`deck file validate`も成功
 - 機密値のKonnect送信に対する利用者の明示承認後、生成済み実値での`deck gateway validate`は成功。事前diffはOIDC plugin 2件の更新のみ（作成0、削除0）
 - 利用者の明示承認後に修正構成を`deck gateway sync`し、OIDC plugin 2件を更新（作成0、削除0）。直後の`deck gateway diff --non-zero-exit-code`はexit 0、作成0・更新0・削除0で収束
-- browser smoke開始時、Data PlaneがOIDC plugin 2件の`ssl_verify: false`をglobal TLS policyとの不整合でrejectしており、`no Route matched with those values`となることを確認。原因と選択肢を[ADR-0006](./docs/decisions/0006-oidc-tls-verification.md)へ記録し、2 pluginに`ssl_verify: true`を明示。local/online validateは成功し、事前diffはOIDC plugin 2件の更新だけ（作成0、削除0）。syncは明示承認待ち
+- browser smoke開始時、Data PlaneがOIDC plugin 2件の`ssl_verify: false`をglobal TLS policyとの不整合でrejectしており、`no Route matched with those values`となることを確認。原因と選択肢を[ADR-0006](./docs/decisions/0006-oidc-tls-verification.md)へ記録し、2 pluginに`ssl_verify: true`を明示。local/online validateは成功し、事前diffはOIDC plugin 2件の更新だけ（作成0、削除0）
+- 利用者の明示承認後にADR-0006の構成を`deck gateway sync`し、OIDC plugin 2件を更新（作成0、削除0）。sync後diffは作成0・更新0・削除0で、Data Planeの全workerが13〜16 msで新構成を受理。browserからlogin Routeへ到達し、Entra ID認可画面へredirectすることを確認
+- `demo-inquiry-only`のUPN/passwordはEntra IDに受理されたが、直後にMicrosoft Authenticator登録が必須表示となり、スキップ導線はなかった。有効なConditional Access policyは0件。Security Defaults/Authentication Methods Policyは現在のCLI token権限では参照できないため、[ADR-0007](./docs/decisions/0007-entra-test-user-mfa-registration.md)で各デモ時の手動Authenticator登録を採用
+- Chat UI containerからKong内部`/llm/chat/completions`へ固定alias `kong-demo-llm`で実リクエストを送信し、Azure OpenAIの`gpt-5-mini-2025-08-07`からHTTP 200・本文`OK`を取得。prompt 11、completion 74（うちreasoning 64）、total 85 token。Kong access logでも同Routeの400 1件と200 3件を確認
+- 証跡更新後にAzure/Entra rootとKonnect rootの`terraform validate`はともに成功し、live refreshを含む`terraform plan -detailed-exitcode`はいずれも`No changes`
+- `demo-inquiry-only`と`demo-both-apis`をMicrosoft Authenticatorへ手動登録し、両ユーザーともKonnect Data Plane経由でChat UIへのログインに成功
+- `demo-inquiry-only`で東京都・女性を検索すると中村美咲（顧客ID `11b960cb-ab54-42d8-af60-516216c1fe91`）のサマリを取得し、続く詳細取得要求は利用可能なToolがない旨の応答となった
+- `demo-both-apis`で同条件を検索し、その結果から同じ顧客の詳細取得まで連続実行。住所・電話番号・メール・年齢・マイナンバー相当を含むフル情報が返った
+- Kong logで両ユーザーのOBO token exchangeとMCP初期化を確認。`demo-both-apis`では`tools/list`の応答サイズがInquiryのみユーザーの728 byteから1265 byteへ増え、検索APIと詳細APIの両方がHTTP 200となった
 
-未実施: ADR-0006のsync、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。Azure OpenAI利用は承認済みだが、Gateway構成変更は別途の明示承認待ち。
+未実施: KonnectのLLM固有Observability画面での反映確認。対象Org `hashi-sandbox`を利用できるChrome profile/sessionへ接続できず、誤ったOrgでの操作を避けて停止した。Azure OpenAI単体経路とログイン/OBO/ACLスモークテストは実測済み。
 
 ## アクセス先
 
@@ -52,6 +60,8 @@ Entra IDテナント上に作成済みの3ユーザーです。全員同じパ�
 | ③ 両方 | `demo-both-apis@hashipicketfence.onmicrosoft.com` | 安全な保管先から取得 | 顧客検索＋顧客詳細（Customer Inquiry・Customer Details両方） |
 
 パスワードは利用者が固定値を設定するのではなく、Terraformの`random_password.test_user`が各ユーザー作成時に24文字で生成し、`azuread_user.password`へ渡します。正しいTerraform stateがある場合のみ、sensitive output `test_user_credentials`から取得できます。デモ終了時にユーザーと`random_password` resourceをdestroyし、次回applyで再作成すれば新しい値になります。通常のデモサイクル外でのローテーションは、明示指示がない限り行いません。
+
+初回ログイン時は[ADR-0007](./docs/decisions/0007-entra-test-user-mfa-registration.md)に従い、対象ユーザーをMicrosoft Authenticatorへ手動登録します。Terraformでユーザーをdestroyすると認証方法もそのユーザーとともに削除されるため、次回作成時は再登録が必要です。
 
 複数ユーザーを行き来する場合、Entra IDのアカウント選択画面で「別のアカウントを使用する」を選ぶか、ブラウザのプライベートウィンドウを使うとスムーズです。
 

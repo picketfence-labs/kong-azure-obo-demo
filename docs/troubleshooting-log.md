@@ -279,4 +279,82 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **何を期待していたか**: decK sync後の無差分構成がData Planeへ反映され、`http://localhost:8000/`がlogin RouteにmatchしてEntra IDへredirectすること
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: browser requestは`no Route matched with those values`（request ID `ec61751739c2ff475f4da174697d0a6e`）を返した。Control PlaneへのdecK diffは無差分だったが、Data Plane logでは2つの`openid-connect` pluginについて`ssl_verify invalid value: global tls_certificate_verify option is enabled, ssl_verify cannot be disabled`として構成全体をrejectしていた
 - **原因**: Kong Gateway 3.16.0.0のglobal TLS証明書検証が有効なのに、OIDC pluginの`ssl_verify`既定値がfalseのままだった。Control Plane上のschema/validate成功は、Data Plane固有のglobal settingとの組み合わせを検出しなかった
-- **対処・回避方法**: [ADR-0006](./decisions/0006-oidc-tls-verification.md)で選択肢を比較し、login/MCPのOIDC pluginへ`ssl_verify: true`を明示した。local/online validateは成功し、事前diffは該当2 pluginの更新だけ（作成0、削除0）。syncとData Plane反映確認は明示承認待ち
+- **対処・回避方法**: [ADR-0006](./decisions/0006-oidc-tls-verification.md)で選択肢を比較し、login/MCPのOIDC pluginへ`ssl_verify: true`を明示した。local/online validate成功後、利用者の明示承認を得てsyncし、該当2 pluginだけを更新（作成0、削除0）。sync後diffは無差分で、Data Planeの全workerが新構成を受理し、browserからEntra ID認可画面へredirectした
+
+## 2026-09-20 11:48 JST Entra IDサインアウト後もKong sessionで元ユーザーへ復帰した
+- **何を期待していたか**: Chat UIのログアウト操作後、Entra IDのサインアウトと`/logout/callback`を経てKong session cookieが破棄され、次のテストユーザーでログインできること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: Entra IDで「アカウントからサインアウトしました」まで到達したが、`http://localhost:8000/`へ再度アクセスすると既存のKong sessionにより元のユーザーでChat UIが表示された
+- **原因**: Microsoft側の非同期なサインアウト完了前に画面確認と再遷移を行っていたため。約5秒待機すると認可endpointへ戻り、アカウント選択画面が表示された
+- **対処・回避方法**: logout後はMicrosoft側の処理と認可画面への遷移完了を待つ。追加のcode/config変更は不要
+
+## 2026-09-20 11:55 JST Terraform作成のテストユーザーでAuthenticator登録が必須になった
+- **何を期待していたか**: `demo-inquiry-only`ユーザーがTerraform生成のパスワードだけで対話ログインを完了し、OBO/ACLテストへ進めること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: UPNとパスワードはEntra IDに受理されたが、直後に「アカウントをセキュリティ保護しましょう」が表示され、Microsoft Authenticator登録を要求された。画面上にスキップ導線はなかった
+- **原因**: 調査中。tenantのSecurity Defaults、Conditional Access、またはAuthenticator登録キャンペーン等による登録要求の可能性があるが、読み取り専用で適用元を確認するまで断定しない
+- **対処・回避方法**: MFA登録やtenant policy変更は権限・セキュリティ状態を変えるため実施せず停止した。適用元を確認し、使い捨てテストユーザーでも再現可能な方式を設計する
+
+## 2026-09-20 11:55 JST sandbox内のAzure CLIがsession fileへ書き込めなかった
+- **何を期待していたか**: 読み取り専用の`az account show`で現在のtenantとsubscriptionを確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: Azure CLI初期化時に`~/.azure/az.sess`への書き込みが`Operation not permitted`となり、問い合わせ前に終了した
+- **原因**: workspace sandboxでは`~/.azure`が書き込み許可対象外だが、Azure CLIが参照系commandでもsession fileを更新しようとするため
+- **対処・回避方法**: 同じ参照commandをsandbox外の承認済み実行として再試行し、現在のtenantとsubscriptionを確認した。認証状態やAzure/Entra resourceは変更していない
+
+## 2026-09-20 11:56 JST Azure CLI tokenではEntra認証ポリシーを参照できなかった
+- **何を期待していたか**: Microsoft GraphのGETでSecurity DefaultsとAuthentication Methods Policyを確認し、Authenticator登録要求の適用元を特定できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `identitySecurityDefaultsEnforcementPolicy`は`required scopes are missing in the token`、`authenticationMethodsPolicy`は`Request Authorization failed`で403になった。一方、Conditional Access policy一覧のGETは成功し、有効なpolicyは0件だった
+- **原因**: 現在のAzure CLI access tokenまたは利用者roleに、これらtenant-wide policyの参照scopeがない
+- **対処・回避方法**: token権限の追加や再同意は行わない。既存のEntra admin center sessionで参照可能ならread-onlyで確認し、確認できない場合はSecurity Defaultsが有力という推定に留める
+
+## 2026-09-20 11:57 JST 現在の`.env`だけではDocker Compose設定を再展開できなかった
+- **何を期待していたか**: `docker compose ps`と`docker compose logs`で稼働中containerとGateway logを参照できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: Composeの設定展開時に`KONNECT_CLUSTER_CERT_PATH is missing a value`で終了した。現在の`.env`には旧構成用のkeyだけがあり、Konnect Data Plane用の必須変数は含まれていなかった
+- **原因**: 稼働開始時に使ったKonnect接続変数が現在のshellまたは`.env`へ保持されていないため。既に起動中のcontainer自体には影響しない
+- **対処・回避方法**: Composeの再作成・再起動は行わず、既存containerを`docker ps`/`docker logs`/`docker exec`で直接参照する
+
+## 2026-09-20 11:58 JST sandbox内からDocker API socketを参照できなかった
+- **何を期待していたか**: `docker ps`で既存containerの状態を読み取れること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `~/.docker/run/docker.sock`への接続が`permission denied`になった
+- **原因**: Docker Desktopのsocketがworkspace sandboxの許可範囲外にあるため
+- **対処・回避方法**: 同じ参照commandをsandbox外の承認済み実行として再試行し、`kong`がhealthy、`chat-ui`と`demo-api`が稼働中であることを確認した
+
+## 2026-09-20 11:58 JST Azure OpenAI modelが`temperature: 0`を拒否した
+- **何を期待していたか**: Kongの`/llm`経由で固定応答を要求する最小chat completionが200を返すこと
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: Azure OpenAIはHTTP 400で`Unsupported value: 'temperature' does not support 0 with this model. Only the default (1) value is supported.`を返した。KongからAzure OpenAIまで到達し、provider側のmodel validationが実行されたことは確認できた
+- **原因**: 現在のdeployment modelは`temperature`の明示値0をサポートせず、既定値1のみを許可する
+- **対処・回避方法**: application codeは`temperature`を指定していないため変更不要。スモークテストpayloadから`temperature`を除いて再試行した。8/64 token上限では全量がreasoning tokenとなり本文が空だったため、application同様に出力上限を省略して再試行し、HTTP 200・本文`OK`・total 85 tokenを確認した
+
+## 2026-09-20 12:02 JST Konnect Observability用に開いたChrome sessionが対象Orgを参照しなかった
+- **何を期待していたか**: `hashi-sandbox` USの`azure-obo-demo`について、直前のLLM requestがLLM固有Observabilityへ反映されたことを確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `https://cloud.konghq.com`は既存Organizationではなく`Create an Organization`へredirectされ、org switcherへ直接移動しても同画面へ戻った。新規Orgは作成していない
+- **原因**: 08:37に記録した事象と同様、Computer Useから新規tabを開いたChrome sessionが`hashi-sandbox`所属identity/sessionを利用できていない
+- **対処・回避方法**: 誤ったOrgでの操作は行わず停止した。underlying trafficはKong access logの`/llm/chat/completions` 200とAzure OpenAI応答で証明済み。対象Chrome profile/sessionが再度利用可能になった後、`azure-obo-demo`かつ直近時間範囲のLLM固有datasetで確認する
+
+## 2026-09-20 12:15 JST 古いAuthenticator登録sessionが`BadRequest`になった
+- **何を期待していたか**: 利用者がADR-0007の選択肢1を承認後、保留していた「次へ」からAuthenticatorのQR code表示へ進めること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `mysignins.microsoft.com/register`へ遷移した直後、`code=BadRequest`となり、「タイムアウトなどが原因である可能性があります」と表示された（correlation ID `92877c45-c586-4444-89f2-5f53f1c86535`）
+- **原因**: password受理から約20分経過した古い登録sessionを再利用したため、登録用transactionが失効した可能性が高い
+- **対処・回避方法**: Authenticatorやtenant policyの障害とは断定せず、Chat UIから新しい認可・password入力を開始して登録画面を再生成した。新しいsessionでは`demo-inquiry-only`と`demo-both-apis`の登録がともに成功し、Chat UIへ戻った
+
+## 2026-09-20 12:49 JST Konnect移行後のOBO/ACL browser smokeが成功した
+- **何を期待していたか**: ADR-0007で決めた手動Authenticator登録後、`demo-inquiry-only`は顧客検索だけ、`demo-both-apis`は顧客検索と詳細取得の両方を実行できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `demo-inquiry-only`は東京都・女性の検索で中村美咲（顧客ID `11b960cb-ab54-42d8-af60-516216c1fe91`）を取得できたが、詳細取得要求には利用可能なToolがない旨が返った。`demo-both-apis`は同じ検索から詳細取得まで連続実行し、年齢・住所・電話番号・メール・マイナンバー相当を含む全フィールドを取得した
+- **原因**: 想定どおり、Entra ID OBOで交換されたtokenのSecurity Group claimに基づき、AI MCP ProxyがユーザーごとのTool可視性を制御した。Kong logでは両ユーザーのtoken exchangeを確認し、両方権限ユーザーの検索・詳細backend requestはいずれもHTTP 200だった
+- **対処・回避方法**: 追加のcode/config変更は不要。デモごとに対象ユーザーのAuthenticator登録を行い、ログアウト後はMicrosoft側のサインアウト完了まで待ってから次のユーザーへ切り替える
+
+## 2026-09-20 12:55 JST `gh pr edit`がProjects classic参照エラーで失敗した
+- **何を期待していたか**: 解消済みのMFA blockerとOBO/ACL実測結果に合わせて、PR #22のタイトルと本文を更新できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `gh pr edit`が`GraphQL: Projects (classic) is being deprecated`で終了し、PR metadataは更新されなかった
+- **原因**: `gh pr edit`のGraphQL queryがPR編集に不要なProjects classicの`projectCards`も参照し、GitHub側の廃止状態により失敗した
+- **対処・回避方法**: PR本体のREST endpointを`gh api --method PATCH`で直接更新し、Projects fieldを参照しない
+
+## 2026-09-20 14:45 JST sandbox内からGitHub APIへ接続できなかった
+- **何を期待していたか**: PR #22の最新状態をread-onlyで確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: sandbox内の`gh pr view 22`が`error connecting to api.github.com`で終了した
+- **原因**: sandboxのnetwork制限によりGitHub APIへ接続できなかった
+- **対処・回避方法**: 同じread-only commandをsandbox外の承認済み実行として再試行し、PR #22がOPENであることを確認した
+
+## 2026-09-20 14:46 JST sandbox内でGit indexを更新できなかった
+- **何を期待していたか**: troubleshooting logの追記を既存PR branchへcommitできること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `git add`が`.git/index.lock: Operation not permitted`で終了した
+- **原因**: workspace sandboxでは`.git`がread-onlyであり、Git indexの更新が許可されていない
+- **対処・回避方法**: 同じ`git add`/`commit`/`push`をsandbox外の承認済み実行として再試行する
