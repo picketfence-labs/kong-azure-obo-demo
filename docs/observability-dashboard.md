@@ -4,7 +4,7 @@
 
 ## 表示する指標
 
-Dashboardは直近24時間をAsia/Tokyoで表示し、control plane IDをpreset filterへ設定します。
+各tileは固有のTime Rangeを持たず、Dashboard全体で選択したTime Rangeを継承します。control plane IDはpreset filterへ設定します。
 
 | 対象 | 指標と内訳 |
 |---|---|
