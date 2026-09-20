@@ -39,7 +39,9 @@ Kong Gateway 3.16.0.0ではglobal TLS証明書検証が有効なため、OIDC pl
 ## 想定していたこと vs 実際どうだったか
 - 宣言ファイルへの実装後、local/online validateは想定どおり成功した。
 - sync前diffは想定どおり、login RouteとMCP RouteのOIDC plugin 2件に対する`ssl_verify: false`から`true`への更新だけ（作成0、削除0）だった。
-- sync、Data Plane反映、browser smoke testの結果は実施後に追記する。
+- 利用者の明示承認後にsyncし、OIDC plugin 2件を更新（作成0、削除0）。sync後diffは作成0・更新0・削除0だった。
+- Data Planeの全workerが新構成を13〜16 msで受理し、browserからlogin Routeへ到達してEntra ID認可画面へredirectした。global TLS policyとの不整合は解消した。
+- その後の対話ログインは、TLS/OIDCエラーではなくtenant側のMicrosoft Authenticator登録要求で停止した。この別論点は[ADR-0007](./0007-entra-test-user-mfa-registration.md)で扱う。
 
 ## 影響・トレードオフ
 - Entra IDのcertificate chainをsystem trust storeで検証できない環境ではOIDCが失敗する。その場合も検証無効化ではなくtrust storeを修正する。
