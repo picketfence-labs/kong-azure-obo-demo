@@ -6,6 +6,10 @@ Chat AIエージェントからMCP経由でバックエンドAPIへアクセス�
 
 ![Chat UI画面](./docs/testing-images/02-chat-inquiry-only-details-denied.png)
 
+Konnectには、Terraformで管理するCustom Dashboard `Azure OBO Demo Observability`を用意しています。API、MCP、LLMのコール数・レイテンシー・エラー率に加え、クライアント別の利用量とLLMのモデル別・クライアント別トークン量を確認できます。
+
+![Konnect Observability Dashboard](./docs/assets/konnect-dashboard.png)
+
 **実際に動かして動作確認したい方は [TESTING.md](./TESTING.md) を参照してください**（スクリーンショット付きの検証手順）。**OBO（On-Behalf-Of）によるトークン交換の仕組みを図解付きで理解したい方は [docs/OBO.md](./docs/OBO.md) を参照してください**。
 
 ## 全体アーキテクチャ
