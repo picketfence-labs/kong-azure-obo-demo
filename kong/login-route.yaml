@@ -30,6 +30,7 @@ services:
           - name: openid-connect
             config:
               issuer: "${{ env "DECK_ENTRA_ISSUER" }}"
+              ssl_verify: true
               client_id:
                 - "${{ env "DECK_MIDDLE_TIER_CLIENT_ID" }}"
               client_secret:
