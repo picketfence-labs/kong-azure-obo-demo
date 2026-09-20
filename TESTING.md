@@ -23,8 +23,11 @@
 - 同じenv file指定で起動したKong Gateway `3.16.0.0`はhealthy。Control Planeへのping、analytics websocket接続、KonnectからのEnterprise license受信を実ログで確認
 - Terraform生成の`secrets/deck.env`を読み込んだ`deck file validate`と`deck gateway validate`: `azure-obo-demo` Control Planeに対して成功
 - 同じ永続envでの`deck gateway diff --non-zero-exit-code`: Service 3件、Route 3件、Plugin 4件の計10件を作成予定。更新0件、削除0件
+- 利用者の明示承認後に`deck gateway sync`: Service 3件、Route 3件、Plugin 4件の計10件を作成。更新0件、削除0件
+- sync直後の同一diff: `openid-connect` plugin 2件に、Gateway自動生成`cache_tokens_salt`と`token_exchange.cache.ttl = null`の正規化差分が残った。再syncは停止し、[ADR-0005](./docs/decisions/0005-oidc-cache-salt-and-token-exchange-ttl.md)の修正を作成
+- 修正後の`terraform validate`: 成功。保存planはcache salt 2件の作成と`secrets/deck.env`の置換だけ（`3 to add, 0 to change, 1 to destroy`）。placeholder saltでのdecK local/online validateも成功し、live diffは想定どおりOIDC plugin 2件の更新のみ
 
-未実施: `deck gateway sync`、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。
+未実施: ADR-0005のTerraform applyとdecK再sync、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。
 
 ## アクセス先
 

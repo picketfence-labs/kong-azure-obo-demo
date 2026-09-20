@@ -249,3 +249,15 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: `azuread`、`azurerm`、`local`、`random`の全providerで`Unrecognized remote plugin message`と`Failed to read any lines from plugin's stdout`が発生した。provider binaryのarchitecture・permissionは正しかった
 - **原因**: 新規`local` provider固有ではなく全providerが同じ症状のため、Codex sandboxがTerraform provider subprocessの起動またはplugin handshakeを制限している可能性が高い
 - **対処・回避方法**: HCLまたはproviderの不具合とは判断せず、同じvalidateをsandbox外の承認済み実行として再試行し、`Success! The configuration is valid.`を確認した
+
+## 2026-09-20 10:03 JST decK sync直後もOpenID Connect plugin 2件に差分が残った
+- **何を期待していたか**: 作成10件の`deck gateway sync`成功後、同じ3 state fileでの`deck gateway diff --non-zero-exit-code`がexit 0の無差分になること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: syncは`Created: 10, Updated: 0, Deleted: 0`で成功したが、直後のdiffはlogin RouteとMCP Routeの`openid-connect` plugin 2件を更新対象とした。主な差分は、未指定の`cache_tokens_salt`にGateway側で自動生成された値が入り、宣言側の`null`と一致しないこと。MCP側では`token_exchange.cache.ttl = null`の正規化差分も表示された
+- **原因**: Konnectのlive plugin schemaで`cache_tokens_salt`が`auto: true`であることを確認した。未指定時にGatewayがplugin instanceごとの値を生成する一方、decKの宣言側は`null`として比較するため差分になる。`token_exchange.cache.ttl`は省略可能かつ既定値なしで、liveの`null`と宣言側の省略にも正規化差分が生じる
+- **対処・回避方法**: [Kong公式資料](https://developer.konghq.com/cookbooks/claude-code-sso/)もsync間でcacheを維持するには安定したsaltの明示を案内しているため、[ADR-0005](./decisions/0005-oidc-cache-salt-and-token-exchange-ttl.md)を作成した。plugin instanceごとのsaltをTerraformで生成して`secrets/deck.env`から参照し、TTLは上位`cache_ttl`の既定値と同じ3600秒を明示する。Terraform/decKのvalidateとplan/diffまで完了し、applyと再syncは明示承認待ち
+
+## 2026-09-20 10:04 JST AGENTS.md記載のlocal `kong-ee`参照先が存在しない
+- **何を期待していたか**: OpenID Connect 3.16 schemaの一次情報を、AGENTS.mdが参照先として挙げるlocal `kong-ee` repositoryで確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: 想定パス`picketfence-labs/LOCAL_REPO/kong-ee`が存在せず、同じ親directoryには`kong-mcp-testbed`のみ存在した
+- **原因**: この端末/workspaceには`kong-ee` repositoryが配置されていない
+- **対処・回避方法**: local sourceを前提にせず、Kong公式ドキュメントとlive schema/decK validateを一次情報として調査する

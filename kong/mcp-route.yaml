@@ -26,6 +26,7 @@ services:
                 - "${{ env "DECK_MIDDLE_TIER_CLIENT_ID" }}"
               client_secret:
                 - "${{ env "DECK_MIDDLE_TIER_CLIENT_SECRET" }}"
+              cache_tokens_salt: "${{ env "DECK_MCP_OIDC_CACHE_TOKENS_SALT" }}"
               auth_methods:
                 - bearer
               scopes:
@@ -33,6 +34,10 @@ services:
               token_exchange:
                 grant_type: jwt_bearer
                 provider: microsoft
+                cache:
+                  enabled: true
+                  # top-level cache_ttlの既定値と同じ。省略時のnull正規化差分を避ける
+                  ttl: 3600
                 # map_identities_from はデフォルト(exchanged_tokens)のまま
                 # （AI MCP ProxyのACLは交換後トークンのgroupsクレームを見るため。design-brief 3節参照）
                 subject_token_issuers:
