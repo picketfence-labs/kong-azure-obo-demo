@@ -274,3 +274,9 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: `.git/refs/heads/docs/oidc-sync-completion.lock` の作成が`Operation not permitted`で失敗し、branchは作成されなかった
 - **原因**: workspace permission profileで`.git`がread-onlyのため
 - **対処・回避方法**: 同じbranch作成をsandbox外の承認済みGit操作として再実行し、成功した
+
+## 2026-09-20 11:32 JST Control Plane構成がData PlaneでOIDC TLS検証エラーによりrejectされた
+- **何を期待していたか**: decK sync後の無差分構成がData Planeへ反映され、`http://localhost:8000/`がlogin RouteにmatchしてEntra IDへredirectすること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: browser requestは`no Route matched with those values`（request ID `ec61751739c2ff475f4da174697d0a6e`）を返した。Control PlaneへのdecK diffは無差分だったが、Data Plane logでは2つの`openid-connect` pluginについて`ssl_verify invalid value: global tls_certificate_verify option is enabled, ssl_verify cannot be disabled`として構成全体をrejectしていた
+- **原因**: Kong Gateway 3.16.0.0のglobal TLS証明書検証が有効なのに、OIDC pluginの`ssl_verify`既定値がfalseのままだった。Control Plane上のschema/validate成功は、Data Plane固有のglobal settingとの組み合わせを検出しなかった
+- **対処・回避方法**: [ADR-0006](./decisions/0006-oidc-tls-verification.md)で選択肢を比較し、login/MCPのOIDC pluginへ`ssl_verify: true`を明示した。local/online validateは成功し、事前diffは該当2 pluginの更新だけ（作成0、削除0）。syncとData Plane反映確認は明示承認待ち
