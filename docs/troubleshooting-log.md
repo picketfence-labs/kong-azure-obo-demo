@@ -254,7 +254,7 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **何を期待していたか**: 作成10件の`deck gateway sync`成功後、同じ3 state fileでの`deck gateway diff --non-zero-exit-code`がexit 0の無差分になること
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: syncは`Created: 10, Updated: 0, Deleted: 0`で成功したが、直後のdiffはlogin RouteとMCP Routeの`openid-connect` plugin 2件を更新対象とした。主な差分は、未指定の`cache_tokens_salt`にGateway側で自動生成された値が入り、宣言側の`null`と一致しないこと。MCP側では`token_exchange.cache.ttl = null`の正規化差分も表示された
 - **原因**: Konnectのlive plugin schemaで`cache_tokens_salt`が`auto: true`であることを確認した。未指定時にGatewayがplugin instanceごとの値を生成する一方、decKの宣言側は`null`として比較するため差分になる。`token_exchange.cache.ttl`は省略可能かつ既定値なしで、liveの`null`と宣言側の省略にも正規化差分が生じる
-- **対処・回避方法**: [Kong公式資料](https://developer.konghq.com/cookbooks/claude-code-sso/)もsync間でcacheを維持するには安定したsaltの明示を案内しているため、[ADR-0005](./decisions/0005-oidc-cache-salt-and-token-exchange-ttl.md)を作成した。plugin instanceごとのsaltをTerraformで生成して`secrets/deck.env`から参照し、TTLは上位`cache_ttl`の既定値と同じ3600秒を明示する。Terraform/decKのvalidateとplan/diffまで完了し、applyと再syncは明示承認待ち
+- **対処・回避方法**: [Kong公式資料](https://developer.konghq.com/cookbooks/claude-code-sso/)もsync間でcacheを維持するには安定したsaltの明示を案内しているため、[ADR-0005](./decisions/0005-oidc-cache-salt-and-token-exchange-ttl.md)を作成した。plugin instanceごとのsaltをTerraformで生成して`secrets/deck.env`から参照し、TTLは上位`cache_ttl`の既定値と同じ3600秒を明示した。明示承認後にTerraform applyと再syncを実施し、直後のdiffは作成0・更新0・削除0へ収束した
 
 ## 2026-09-20 10:04 JST AGENTS.md記載のlocal `kong-ee`参照先が存在しない
 - **何を期待していたか**: OpenID Connect 3.16 schemaの一次情報を、AGENTS.mdが参照先として挙げるlocal `kong-ee` repositoryで確認できること
@@ -267,3 +267,10 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: 実行前の承認レビューで、Entra client secretやAzure OpenAI API key等をKonnectへ送ることに対する明示承認が不足しているとして拒否された。プロセスは起動されず、Konnectへのリクエストや機密値送信は発生していない
 - **原因**: 利用者の「進めてください」はTerraform applyと再syncの承認として扱ったが、機密設定値をonline validate/sync payloadとしてKonnectへ送る点を個別に明示していなかった
 - **対処・回避方法**: 回避や間接実行は行わず停止した。送信先が`hashi-sandbox` USの`azure-obo-demo`であり、送信対象にEntra client secret、Azure OpenAI API key、session secret、OIDC cache saltが含まれることを示し、利用者から明示承認を得てから再実行する
+- **解決確認**: 送信対象と送信先を明示して利用者の承認を得た後、online validate、diff、syncを実行。sync後のdiffは作成0・更新0・削除0で収束した
+
+## 2026-09-20 `.git` refsへの書き込みがworkspace sandboxで拒否された
+- **何を期待していたか**: PR用の作業branchを通常の`git switch -c`で作成できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `.git/refs/heads/docs/oidc-sync-completion.lock` の作成が`Operation not permitted`で失敗し、branchは作成されなかった
+- **原因**: workspace permission profileで`.git`がread-onlyのため
+- **対処・回避方法**: 同じbranch作成をsandbox外の承認済みGit操作として再実行し、成功した
