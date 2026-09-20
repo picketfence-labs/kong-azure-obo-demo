@@ -64,6 +64,11 @@ output "azure_openai_api_key" {
   sensitive   = true
 }
 
+output "deck_environment_file" {
+  description = "Terraformが生成するdecK用local secret env fileのパス"
+  value       = local_sensitive_file.deck_environment.filename
+}
+
 output "test_user_credentials" {
   description = "検証用ユーザーのサインイン情報（ブラウザでのログイン確認用）"
   value = {

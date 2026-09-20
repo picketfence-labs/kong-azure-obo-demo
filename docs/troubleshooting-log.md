@@ -243,3 +243,9 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: `gh pr view`が`error connecting to api.github.com`で失敗した
 - **原因**: Codex sandboxのnetwork制限
 - **対処・回避方法**: 同じread/update操作をsandbox外の承認済み実行として再試行する
+
+## 2026-09-20 09:40 JST sandbox内でAzure/Entra rootのprovider schemaを読み込めない
+- **何を期待していたか**: `terraform/`で、追加した`local` providerを含む構成を`terraform validate`できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `azuread`、`azurerm`、`local`、`random`の全providerで`Unrecognized remote plugin message`と`Failed to read any lines from plugin's stdout`が発生した。provider binaryのarchitecture・permissionは正しかった
+- **原因**: 新規`local` provider固有ではなく全providerが同じ症状のため、Codex sandboxがTerraform provider subprocessの起動またはplugin handshakeを制限している可能性が高い
+- **対処・回避方法**: HCLまたはproviderの不具合とは判断せず、同じvalidateをsandbox外の承認済み実行として再試行し、`Success! The configuration is valid.`を確認した
