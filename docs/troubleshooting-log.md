@@ -346,3 +346,15 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: `gh pr edit`が`GraphQL: Projects (classic) is being deprecated`で終了し、PR metadataは更新されなかった
 - **原因**: `gh pr edit`のGraphQL queryがPR編集に不要なProjects classicの`projectCards`も参照し、GitHub側の廃止状態により失敗した
 - **対処・回避方法**: PR本体のREST endpointを`gh api --method PATCH`で直接更新し、Projects fieldを参照しない
+
+## 2026-09-20 14:45 JST sandbox内からGitHub APIへ接続できなかった
+- **何を期待していたか**: PR #22の最新状態をread-onlyで確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: sandbox内の`gh pr view 22`が`error connecting to api.github.com`で終了した
+- **原因**: sandboxのnetwork制限によりGitHub APIへ接続できなかった
+- **対処・回避方法**: 同じread-only commandをsandbox外の承認済み実行として再試行し、PR #22がOPENであることを確認した
+
+## 2026-09-20 14:46 JST sandbox内でGit indexを更新できなかった
+- **何を期待していたか**: troubleshooting logの追記を既存PR branchへcommitできること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `git add`が`.git/index.lock: Operation not permitted`で終了した
+- **原因**: workspace sandboxでは`.git`がread-onlyであり、Git indexの更新が許可されていない
+- **対処・回避方法**: 同じ`git add`/`commit`/`push`をsandbox外の承認済み実行として再試行する
