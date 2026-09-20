@@ -42,7 +42,9 @@ MCP Routeの`token_exchange.cache.ttl`は3600秒を明示する。
 - TTL 3600秒はlive schemaで確認した上位`cache_ttl`の既定値と同じであり、通常動作を意図的に変更しない。
 
 ## 想定していたこと vs 実際どうだったか
-実装、Terraform apply、decK再sync後に追記する。
+- 想定: Terraform applyでsalt 2件を作成し、`secrets/deck.env`の置換以外の既存resourceは変更しない。実際: `3 added, 0 changed, 1 destroyed`で完了し、destroyはlocal sensitive fileの置換のみ。後続planは`No changes`。
+- 想定: 生成済み実値でonline validateでき、sync前の差分はOIDC plugin 2件に限定される。実際: `deck gateway validate`は成功し、diffは更新2・作成0・削除0。
+- 想定: 再sync後のdiffが無差分になる。実際: OIDC plugin 2件の更新後、`deck gateway diff --non-zero-exit-code`はexit 0、作成0・更新0・削除0となった。
 
 ## 影響・トレードオフ
 - `terraform/terraform.tfstate`と`secrets/deck.env`に2つのsaltが追加されるため、既存どおりcommitせずmode `0600`を維持する。
