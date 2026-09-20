@@ -41,7 +41,7 @@ Kongがフロントする3 Route構成は維持する。
 - `kong/login-route.yaml`、`kong/mcp-route.yaml`、`kong/llm-route.yaml`のdecK宣言的設定を維持する。
 - 反映先をlocal Admin APIからKonnect Control Planeへ変更する。
 - 変更適用は`deck gateway validate` → `deck gateway diff` → 人間承認後の`deck gateway sync`とする。
-- Konnect resource管理のために既存Terraformのscopeを無断で拡張しない。現行TerraformはEntra ID / Azure resourceのみを管理する。
+- Konnect platform resourceは利用者指定によりTerraform管理とする。既存Azure/Entra ID rootの空state問題から隔離するため、`terraform/konnect/`を独立root/stateとして使用する（[ADR-0003](./decisions/0003-konnect-terraform-state-boundary.md)）。Gateway entityは引き続きdecKで管理する。
 
 ### 2.4 Konnect Observability Dashboard
 
@@ -145,7 +145,7 @@ Konnect Control Plane
 - LLM: Azure OpenAI、AI Proxy Advanced
 - Application: Next.js + Vercel AI SDK、TypeScript + Bun
 - Konnect: Gateway Control Plane、Observability Custom Dashboards、MCP Registry、Catalog AI Model
-- IaC: Terraform `azuread` provider（Entra ID / Azureのみ）
+- IaC: Terraform `azuread` / `azurerm` provider（Entra ID / Azure）、公式`kong/konnect` provider（Control Plane / Data Plane client certificate）。両者は独立state
 
 ## 7. スモークテスト
 
@@ -165,6 +165,7 @@ Konnect Control Plane
 ### 成果物
 
 - GA + Konnect Data Plane対応済み`docker-compose.yml`と`.env.example`
+- Konnect専用Terraform root（Control Plane、Data Plane certificate、Compose用env fragment）
 - Konnect Control Plane向けdecK設定と安全なvalidate/diff/sync手順
 - Observability Dashboard definition/exportと再現手順
 - MCP Registry publish definition/commandとread-back手順

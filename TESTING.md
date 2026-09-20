@@ -12,9 +12,14 @@
 - 一時的な自己署名certificate/keyをread-only mountし、Composeと同じData Plane環境変数で`kong prepare`: 成功。local licenseは未設定
 - `deck file validate kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`: decK 1.53.1で成功（非機密のplaceholder値を使用）
 - `terraform -chdir=terraform validate`: 成功
-- `terraform -chdir=terraform plan`: 既存stateを認識せず`26 to add`となるため、適用禁止。詳細は[troubleshooting log](./docs/troubleshooting-log.md)を参照
+- `terraform -chdir=terraform state list`: 空。live refreshにより、Azure/Entraデモresourceが前回destroy済みであることを確認
+- `terraform -chdir=terraform plan`: 新しいデモ環境をprovisionする場合は`26 to add`。Azure OpenAIのコストを伴うため、明示承認後のみapplyする
+- `terraform -chdir=terraform/konnect validate`: 成功
+- `terraform -chdir=terraform/konnect apply`: `azure-obo-demo` Control Plane、Data Plane client certificate、local certificate/key、Compose用env fragmentの8 resourceを作成
+- `docker compose --env-file .env --env-file secrets/konnect/compose.env config --quiet`: 成功
+- 同じenv file指定で起動したKong Gateway `3.16.0.0`はhealthy。Control Planeへのping、analytics websocket接続、KonnectからのEnterprise license受信を実ログで確認
 
-未実施: 実Control PlaneへのData Plane接続、`deck gateway validate`/`diff`/`sync`、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。対象Control PlaneとmTLS入力の確定後に実施する。
+未実施: `deck gateway validate`/`diff`/`sync`、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。Azure/EntraデモresourceをTerraformでprovisionした後に実施する。
 
 ## アクセス先
 

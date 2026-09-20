@@ -183,3 +183,57 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: sandbox内では`~/.config/kongctl/logs/kongctl.log: operation not permitted`、sandbox外では`authentication token not available`で停止した
 - **原因**: sandboxのログ書込制約に加え、ローカル`kongctl`にPATまたはlogin sessionが設定されていないため
 - **対処・回避方法**: `hashi-sandbox`用credentialを明示的に接続するまで、`kongctl`からのlive確認・変更は行わない
+
+## 2026-09-20 08:37 JST 最初に開いたChromeプロファイルが対象Konnect Organizationへ参加していなかった
+- **何を期待していたか**: 既存のKonnect Organization `hashi-sandbox`へログインし、Control Planeを確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: 最初のChromeプロファイルでは既存Orgではなく新規Organization作成画面が表示された。利用者が開いた仕事用Chromeプロファイルへ切り替えると、USリージョンの`hashi-sandbox`と既存Control Plane 20件を確認できた
+- **原因**: 最初に使ったChromeプロファイルのGoogle identityが`hashi-sandbox`へ所属していなかったため
+- **対処・回避方法**: Konnect UIの変更前に、ヘッダーのOrganization名とURLのgeoを必ず確認する。今回は`hashi-sandbox`かつ`/us/`を確認した後、対象名`azure-obo-demo`が存在しないことをUI検索で再確認した
+
+## 2026-09-20 08:46 JST Chrome UIの作成フォームを閉じる操作前にComputer Use sessionが解除された
+- **何を期待していたか**: Terraform管理へ切り替えるため、未送信のKonnect Control Plane作成フォームをCancelできること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: 最初のCancel操作は、Chromeに対するComputer Useがactiveでないため画面状態を再取得するよう要求され、操作されなかった
+- **原因**: 利用者の追加指示を挟んだ時点で、Chrome UI操作sessionのactive stateが解除されていた
+- **対処・回避方法**: 画面状態を再取得してフォーム内容が未送信であることを確認し、その後Cancelを実行した。Control PlaneはUIから作成されていない
+
+## 2026-09-20 08:48 JST sandbox内の`terraform init`がTerraform Registryの名前解決に失敗
+- **何を期待していたか**: `terraform/konnect/`で公式`kong/konnect`、`hashicorp/tls`、`hashicorp/local` providerを取得し、lock fileを生成できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `registry.terraform.io`のdiscovery document取得時に`dial tcp: lookup registry.terraform.io: no such host`となり、3 providerすべてのversion queryが失敗した
+- **原因**: Codex sandboxのnetwork/DNS制限
+- **対処・回避方法**: provider構成エラーとは判断せず、同じ`terraform init`をsandbox外の承認済み実行として再試行する
+
+## 2026-09-20 08:49 JST sandbox内でKonnect rootのprovider schemaを読み込めない
+- **何を期待していたか**: `terraform/konnect/`で`terraform validate`と`terraform providers schema -json`を実行できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `konnect`、`tls`、`local`の全providerで`Unrecognized remote plugin message`と`Failed to read any lines from plugin's stdout`が発生した。provider binaryのarchitecture・permissionは正しかった
+- **原因**: 既存Azure rootで確認済みの事象と同じく、Codex sandboxがTerraform provider subprocessの起動またはplugin handshakeを制限している可能性が高い
+- **対処・回避方法**: HCLエラーとは判断せず、validateとschema inspectionをsandbox外の承認済み実行として再試行する
+
+## 2026-09-20 08:51 JST local Terraform stateが秘密鍵を含む状態でmode `0644`になった
+- **何を期待していたか**: Data Plane private keyを含む`terraform/konnect/terraform.tfstate`がownerのみ読み書き可能なpermissionで作成されること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: apply後のstateはmode `0644`で、同一端末の他ユーザーから読み取り可能な設定だった。生成した`tls.crt`と`tls.key`自体は指定どおり`0600`だった
+- **原因**: local backendがstate fileを既定のprocess umaskに従って作成し、HCLからfile permissionを指定できないため
+- **対処・回避方法**: stateを直ちに`chmod 600`へ変更した。stateはgitignore対象のまま維持し、apply後にpermissionを確認する手順をREADMEへ明記する
+
+## 2026-09-20 08:53 JST sandbox内からDocker socketへ接続できない
+- **何を期待していたか**: Terraform生成のCompose env fragmentを使い、現在のData Plane稼働状態を`docker compose ps`でread-only確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `permission denied while trying to connect to the docker API`でDocker socketへの接続が拒否された
+- **原因**: Codex sandboxからユーザーのDocker Desktop socketへのアクセスが制限されているため
+- **対処・回避方法**: Compose構成の展開確認はsandbox内で完了済み。稼働確認・起動は同じenv file指定でsandbox外の承認済み実行として行う
+
+## 2026-09-20 08:57 JST Azure/Entraの有効なbackup stateを発見
+- **何を期待していたか**: 空になっている`terraform/terraform.tfstate`に対応するstate recovery元を特定できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `terraform/terraform.tfstate.backup`は現在stateと同じlineageで、serial 94、28 resource address、必要なsensitive outputを保持していた。現在stateはserial 124だがresource/outputが空。backupを明示したplanは`No changes`だった
+- **原因**: 過去のTerraform操作で空stateが現在stateとして保存された一方、その直前の有効stateが自動backupに残っていた
+- **対処・回避方法**: backupは現在HCLとの整合性が確認できた。ただし`-state` flagはdeprecated warningを出すため恒久運用には使用しない。現在の空stateを退避した上で、利用者承認後に`terraform state push -force`でbackupを正式stateへ復旧し、通常planでlive refreshを確認する
+
+## 2026-09-20 09:04 JST backup stateは復旧元ではなくdestroy前のstale stateだった
+- **何を期待していたか**: backup stateを正式stateへpushした後の通常planで、Azure/Entra実体とstateが一致して`No changes`になること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: live refreshによりApp Registration、Service Principal、Security Group、test user、Azure OpenAI、resource group等が実体側で削除済みと判明し、planは`23 to add, 0 to change, 0 to destroy`を提示した。`-refresh=false`での事前planはstateとHCLの一致しか確認せず、live resourceの存在を証明していなかった
+- **原因**: 空stateは破損ではなく過去の`terraform destroy`後の正しい状態で、`.backup`はdestroy直前のstateだった可能性が高い
+- **対処・回避方法**: applyは実行しない。事前退避したserial 124の空stateを直ちに正式stateへ戻す。今後、backup stateの復旧可否は必ずlive refresh結果で判断し、`-refresh=false`の結果だけを根拠にしない
+
+## 2026-09-20 09:07 JST RTKのfiltered `git diff --cached --check`が診断を表示しなかった
+- **何を期待していたか**: staged差分のwhitespace checkで、問題があれば対象file/lineが表示されること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: 通常のRTK経由ではoutputなしのexit 2となった。`rtk proxy`でunfiltered実行すると、Terraform 3 fileのEOFに余分な空行があることを確認できた
+- **原因**: RTKの`git diff` output filterが`--cached --check`の診断を抑制したため
+- **対処・回避方法**: 対象3 fileの余分なEOF空行を除去した。staged whitespace checkは結果が不明瞭な場合に`rtk proxy git diff --cached --check`で再確認する
