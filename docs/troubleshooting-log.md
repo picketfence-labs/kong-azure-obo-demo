@@ -388,3 +388,9 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: live refresh後のplanでは、Time Range削除に加えて`Error rate by route`のdimensionsをlive側`["route", "time"]`からHCL側`["time", "route"]`へ戻す差分が1件検出された
 - **原因**: Konnect UIでの確認・保存後、当該tileのdimension順序が作成時のHCLと異なる順序でlive resourceへ保存されていた。UIまたはAPIによる正規化か手動保存時の並べ替えかは未確定
 - **対処・回避方法**: 今回の変更へ意図しないdimension順序変更を混ぜないよう、HCLを現在のlive順序へ合わせた上でplanを再作成する
+
+## 2026-09-20 15:52 JST PR #24マージ後にPR #25が競合した
+- **何を期待していたか**: Dashboard apply証跡のPR #24をマージ後も、Time Range継承変更のPR #25をそのままマージできること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: GitHub上でPR #25が`CONFLICTING` / `DIRTY`となり、`docs/troubleshooting-log.md`にcontent conflictが発生した
+- **原因**: PR #24とPR #25が同じ基点から同ファイル末尾へ、それぞれ15:20と15:27の記録を追加していたため
+- **対処・回避方法**: 最新`origin/main`をPR #25ブランチへmergeし、両記録を時系列で保持して競合を解消した。Terraform validateとlive planを再実行後にpushし、GitHub上で`MERGEABLE` / `CLEAN`を確認した
