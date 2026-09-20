@@ -237,3 +237,9 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: 通常のRTK経由ではoutputなしのexit 2となった。`rtk proxy`でunfiltered実行すると、Terraform 3 fileのEOFに余分な空行があることを確認できた
 - **原因**: RTKの`git diff` output filterが`--cached --check`の診断を抑制したため
 - **対処・回避方法**: 対象3 fileの余分なEOF空行を除去した。staged whitespace checkは結果が不明瞭な場合に`rtk proxy git diff --cached --check`で再確認する
+
+## 2026-09-20 09:08 JST sandbox内からGitHub APIへ接続できない
+- **何を期待していたか**: PR #15の現在本文を取得し、Terraform実装とlive検証結果へ更新できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `gh pr view`が`error connecting to api.github.com`で失敗した
+- **原因**: Codex sandboxのnetwork制限
+- **対処・回避方法**: 同じread/update操作をsandbox外の承認済み実行として再試行する
