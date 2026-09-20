@@ -376,3 +376,9 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: `terraform validate`でAPI、Agentic、LLM queryの3 dimension指定がすべて`list must contain at most 2 elements`となった
 - **原因**: `kong/konnect-beta` 0.22.0の生成文書はTop Nを最大3 dimensionと説明する一方、実際のprovider schema validatorは各queryのdimension数を最大2に制限している
 - **対処・回避方法**: 実行時schemaを正として各Top N queryを2 dimensionへ削減した。client識別は`principal`と`application`、MCPは`principal`と`mcp_method`または`mcp_method`と`mcp_tool_name`を組み合わせる
+
+## 2026-09-20 15:20 JST apply後のDashboard URLが対象Organizationではなく新規Organization作成画面へ遷移した
+- **何を期待していたか**: Terraformで作成した`Azure OBO Demo Observability`を、対象Organization `hashi-sandbox`のKonnect UIで開き、各tileへのtraffic反映を確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: Dashboard URL `https://cloud.konghq.com/us/analytics/dashboards/312c1e16-e4b5-4794-a522-57037e30737b`をChromeで開くと、`https://cloud.konghq.com/register?logout=true`へredirectされ、`Create a new Organization | Konnect`が表示された。新規Organizationは作成していない
+- **原因**: 12:02の事象と同様、Computer Useが選択したChrome sessionは`hashi-sandbox`所属identityのKonnect sessionを利用できていない
+- **対処・回避方法**: UI操作を停止し、Terraform state read-backとapply後の`No changes`でDashboard resourceの存在・構成収束を確認した。対象Organizationへログイン済みのChrome profile/sessionが利用可能になった時点でtileとdatasetの目視確認を再開する

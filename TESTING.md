@@ -39,8 +39,11 @@
 - `demo-both-apis`で同条件を検索し、その結果から同じ顧客の詳細取得まで連続実行。住所・電話番号・メール・年齢・マイナンバー相当を含むフル情報が返った
 - Kong logで両ユーザーのOBO token exchangeとMCP初期化を確認。`demo-both-apis`では`tools/list`の応答サイズがInquiryのみユーザーの728 byteから1265 byteへ増え、検索APIと詳細APIの両方がHTTP 200となった
 - Custom Dashboard追加後の`terraform -chdir=terraform/konnect validate`: 成功。live refreshを含む保存planは`konnect_dashboard.azure_obo_demo`の作成だけで、`1 to add, 0 to change, 0 to destroy`
+- 利用者の明示承認後、上記保存planをapplyし、Custom Dashboard `Azure OBO Demo Observability`（ID `312c1e16-e4b5-4794-a522-57037e30737b`）を作成。結果は`1 added, 0 changed, 0 destroyed`
+- apply後のstate read-backでdashboard名、ID、Control Plane preset filter、22 tileを確認。`terraform/konnect/terraform.tfstate`はmode `0600`
+- apply後の`terraform -chdir=terraform/konnect plan -detailed-exitcode`: `No changes`
 
-未実施: Custom Dashboardのapplyと、API/MCP/LLM各datasetへのsmoke traffic反映確認。Azure OpenAI単体経路とログイン/OBO/ACLスモークテストは実測済み。
+未実施: Konnect UI上でのAPI/MCP/LLM各datasetへのsmoke traffic反映確認。Dashboardへの直接URLは対象`hashi-sandbox`ではなく`Create an Organization`へredirectされたため、誤ったOrgを作成せず停止した。Dashboard resourceの作成と構成収束はTerraformのread-backと再planで確認済み。Azure OpenAI単体経路とログイン/OBO/ACLスモークテストは実測済み。
 
 ## アクセス先
 
