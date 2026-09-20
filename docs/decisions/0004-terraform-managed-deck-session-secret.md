@@ -38,7 +38,9 @@ GatewayのService、Route、Pluginは引き続き`kong/`配下のdecK state file
 - `docs/design-brief.md`の3 Route構成、OBO方式、将来のTool追加方針は変更しない。
 
 ## 想定していたこと vs 実際どうだったか
-実装とapply後に追記する。
+想定どおり、保存planは`random_password.deck_session_secret`、`terraform_data.deck_secrets_directory`、`local_sensitive_file.deck_environment`の3 resourceのみを追加し、既存のAzure/Entra ID resourceには変更を加えなかった。applyは`3 added, 0 changed, 0 destroyed`で完了し、後続planは`No changes`だった。
+
+生成された`secrets/deck.env`はmode `0600`で、必要な10個の環境変数を保持する。値を表示せず変数名だけを確認した後、このファイルを読み込んだdecKのlocal validate、Konnect online validateが成功した。live diffもService 3件、Route 3件、Plugin 4件の作成のみで、更新・削除はなかった。
 
 ## 影響・トレードオフ
 - `terraform/terraform.tfstate`と`secrets/deck.env`は機密情報としてcommitせず、アクセス権を制限する。
