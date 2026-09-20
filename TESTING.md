@@ -4,7 +4,7 @@
 
 ## Konnect移行preflight（2026-09-20）
 
-実環境へ変更を加えない範囲で、次を確認済みです。
+次を確認済みです。
 
 - `docker compose --env-file .env.example config --quiet`: 成功。Postgres、migrations、local Admin API、local license設定が展開結果に含まれない
 - `docker pull kong/kong-gateway:3.16.0.0`: 成功（digest `sha256:e2678b4cb534fc9d6a17288d83457d6cbea235a6331dc4982e021300ccb668c4`）
@@ -12,14 +12,15 @@
 - 一時的な自己署名certificate/keyをread-only mountし、Composeと同じData Plane環境変数で`kong prepare`: 成功。local licenseは未設定
 - `deck file validate kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`: decK 1.53.1で成功（非機密のplaceholder値を使用）
 - `terraform -chdir=terraform validate`: 成功
-- `terraform -chdir=terraform state list`: 空。live refreshにより、Azure/Entraデモresourceが前回destroy済みであることを確認
-- `terraform -chdir=terraform plan`: 新しいデモ環境をprovisionする場合は`26 to add`。Azure OpenAIのコストを伴うため、明示承認後のみapplyする
+- `terraform -chdir=terraform plan`: `26 to add, 0 to change, 0 to destroy`を確認し、利用者の明示承認後に保存planをapply
+- `terraform -chdir=terraform apply <saved-plan>`: Entra IDのApp Registration 2件、Service Principal 2件、Security Group 3件、テストユーザー3件と関連割り当て、Azure OpenAIアカウント、`gpt-5-mini` deploymentを含む26 resourceの作成に成功
+- apply後の`terraform -chdir=terraform plan -detailed-exitcode`: `No changes`。stateファイルとbackupは`0600`
 - `terraform -chdir=terraform/konnect validate`: 成功
 - `terraform -chdir=terraform/konnect apply`: `azure-obo-demo` Control Plane、Data Plane client certificate、local certificate/key、Compose用env fragmentの8 resourceを作成
 - `docker compose --env-file .env --env-file secrets/konnect/compose.env config --quiet`: 成功
 - 同じenv file指定で起動したKong Gateway `3.16.0.0`はhealthy。Control Planeへのping、analytics websocket接続、KonnectからのEnterprise license受信を実ログで確認
 
-未実施: `deck gateway validate`/`diff`/`sync`、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。Azure/EntraデモresourceをTerraformでprovisionした後に実施する。
+未実施: `deck gateway validate`/`diff`/`sync`、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。
 
 ## アクセス先
 
