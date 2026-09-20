@@ -9,6 +9,8 @@ locals {
     DECK_ENTRA_ISSUER                         = "https://login.microsoftonline.com/${data.azuread_client_config.current.tenant_id}/v2.0"
     DECK_GROUP_API_CUSTOMER_DETAILS_OBJECT_ID = azuread_group.api_customer_details.object_id
     DECK_GROUP_API_CUSTOMER_INQUIRY_OBJECT_ID = azuread_group.api_customer_inquiry.object_id
+    DECK_LOGIN_OIDC_CACHE_TOKENS_SALT         = random_password.login_oidc_cache_tokens_salt.result
+    DECK_MCP_OIDC_CACHE_TOKENS_SALT           = random_password.mcp_oidc_cache_tokens_salt.result
     DECK_MIDDLE_TIER_CLIENT_ID                = azuread_application.middle_tier.client_id
     DECK_MIDDLE_TIER_CLIENT_SECRET            = azuread_application_password.middle_tier.value
     DECK_SESSION_SECRET                       = random_password.deck_session_secret.result
@@ -24,6 +26,16 @@ locals {
 
 resource "random_password" "deck_session_secret" {
   length  = 64
+  special = false
+}
+
+resource "random_password" "login_oidc_cache_tokens_salt" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "mcp_oidc_cache_tokens_salt" {
+  length  = 32
   special = false
 }
 

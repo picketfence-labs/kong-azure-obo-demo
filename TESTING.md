@@ -15,15 +15,19 @@
 - `terraform -chdir=terraform plan`: `26 to add, 0 to change, 0 to destroy`を確認し、利用者の明示承認後に保存planをapply
 - `terraform -chdir=terraform apply <saved-plan>`: Entra IDのApp Registration 2件、Service Principal 2件、Security Group 3件、テストユーザー3件と関連割り当て、Azure OpenAIアカウント、`gpt-5-mini` deploymentを含む26 resourceの作成に成功
 - apply後の`terraform -chdir=terraform plan -detailed-exitcode`: `No changes`。stateファイルとbackupは`0600`
-- 永続的なdecK session secretと`secrets/deck.env`のTerraform管理化について`terraform -chdir=terraform validate`: 成功。live refreshを含む保存planは対象3 resourceのみ`3 to add, 0 to change, 0 to destroy`で、既存26 resourceへの変更なし
+- 永続的なdecK session secretと`secrets/deck.env`のTerraform管理化について`terraform -chdir=terraform validate`: 成功。live refreshを含む保存planは対象3 resourceのみ`3 to add, 0 to change, 0 to destroy`で、既存26 resourceへの変更なし。利用者の明示承認後に保存planをapplyし、`3 added, 0 changed, 0 destroyed`
+- apply後の`terraform -chdir=terraform plan -detailed-exitcode`: `No changes`。`terraform.tfstate`、backup、生成された`secrets/deck.env`はいずれもmode `0600`
 - `terraform -chdir=terraform/konnect validate`: 成功
 - `terraform -chdir=terraform/konnect apply`: `azure-obo-demo` Control Plane、Data Plane client certificate、local certificate/key、Compose用env fragmentの8 resourceを作成
 - `docker compose --env-file .env --env-file secrets/konnect/compose.env config --quiet`: 成功
 - 同じenv file指定で起動したKong Gateway `3.16.0.0`はhealthy。Control Planeへのping、analytics websocket接続、KonnectからのEnterprise license受信を実ログで確認
-- Terraform outputを`DECK_`環境変数へ渡した`deck gateway validate`: `azure-obo-demo` Control Planeに対して成功
-- 同じ入力での`deck gateway diff --non-zero-exit-code`: Service 3件、Route 3件、Plugin 4件の計10件を作成予定。更新0件、削除0件
+- Terraform生成の`secrets/deck.env`を読み込んだ`deck file validate`と`deck gateway validate`: `azure-obo-demo` Control Planeに対して成功
+- 同じ永続envでの`deck gateway diff --non-zero-exit-code`: Service 3件、Route 3件、Plugin 4件の計10件を作成予定。更新0件、削除0件
+- 利用者の明示承認後に`deck gateway sync`: Service 3件、Route 3件、Plugin 4件の計10件を作成。更新0件、削除0件
+- sync直後の同一diff: `openid-connect` plugin 2件に、Gateway自動生成`cache_tokens_salt`と`token_exchange.cache.ttl = null`の正規化差分が残った。再syncは停止し、[ADR-0005](./docs/decisions/0005-oidc-cache-salt-and-token-exchange-ttl.md)の修正を作成
+- 修正後の`terraform validate`: 成功。保存planはcache salt 2件の作成と`secrets/deck.env`の置換だけ（`3 to add, 0 to change, 1 to destroy`）。placeholder saltでのdecK local/online validateも成功し、live diffは想定どおりOIDC plugin 2件の更新のみ
 
-未実施: 永続的なdecK session secretのTerraform apply、生成されるlocal secretを使ったdecK再validate/diff、`deck gateway sync`、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。
+未実施: ADR-0005のTerraform applyとdecK再sync、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。
 
 ## アクセス先
 

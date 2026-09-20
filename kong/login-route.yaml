@@ -34,6 +34,7 @@ services:
                 - "${{ env "DECK_MIDDLE_TIER_CLIENT_ID" }}"
               client_secret:
                 - "${{ env "DECK_MIDDLE_TIER_CLIENT_SECRET" }}"
+              cache_tokens_salt: "${{ env "DECK_LOGIN_OIDC_CACHE_TOKENS_SALT" }}"
               auth_methods:
                 - authorization_code
                 - session

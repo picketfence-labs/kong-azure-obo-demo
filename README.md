@@ -118,7 +118,7 @@ cd ../..
    export DECK_KONNECT_ADDR='https://us.api.konghq.com'
    export DECK_KONNECT_CONTROL_PLANE_NAME='azure-obo-demo'
    ```
-   `DECK_SESSION_SECRET`は`random_password.deck_session_secret`としてTerraform stateで安定管理する。明示的にresourceを再作成しない限り再applyでローテーションされない。`KONNECT_TOKEN`は短命な実行時資格情報としてファイルへ保存しない。
+   `DECK_SESSION_SECRET`とplugin instance別のOIDC cache saltはTerraform stateで安定管理する。明示的にresourceを再作成しない限り再applyでローテーションされない。`KONNECT_TOKEN`は短命な実行時資格情報としてファイルへ保存しない。
 4. ローカルでの構文検証（Kongへの接続不要）: `deck file validate kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`
 5. 対象Control Planeに対するonline validationと差分確認:
    ```bash
