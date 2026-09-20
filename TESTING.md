@@ -19,8 +19,10 @@
 - `terraform -chdir=terraform/konnect apply`: `azure-obo-demo` Control Plane、Data Plane client certificate、local certificate/key、Compose用env fragmentの8 resourceを作成
 - `docker compose --env-file .env --env-file secrets/konnect/compose.env config --quiet`: 成功
 - 同じenv file指定で起動したKong Gateway `3.16.0.0`はhealthy。Control Planeへのping、analytics websocket接続、KonnectからのEnterprise license受信を実ログで確認
+- Terraform outputを`DECK_`環境変数へ渡した`deck gateway validate`: `azure-obo-demo` Control Planeに対して成功
+- 同じ入力での`deck gateway diff --non-zero-exit-code`: Service 3件、Route 3件、Plugin 4件の計10件を作成予定。更新0件、削除0件
 
-未実施: `deck gateway validate`/`diff`/`sync`、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。
+未実施: `deck gateway sync`、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。validate/diffでは検証専用の一時的な`DECK_SESSION_SECRET`を使用したため、sync前に永続値を安全なlocal secretとして設定する。
 
 ## アクセス先
 
