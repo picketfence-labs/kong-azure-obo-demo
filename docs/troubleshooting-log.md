@@ -118,3 +118,128 @@
 
 ## 2026-09-01 デモAPI: テストデータ生成方法の記録
 CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記録。`services/demo-api/src/data.ts`の100人分の顧客データ（マイナンバーを模した12桁の値を含む）は、固定シード（42）のmulberry32擬似乱数生成器のみから機械的に組み立てた完全な架空データ。実在の人物・実在の番号を一切参照していない。氏名は姓・名それぞれ10種の一般的な単語からの組み合わせ、マイナンバー相当値は12桁の乱数文字列（チェックデジット等の実仕様は再現していない）。
+
+## 2026-09-20 07:48 JST `gh pr merge --delete-branch`がローカルブランチ削除だけ失敗
+- **何を期待していたか**: PR #14をsquash mergeし、リモート・ローカルの作業ブランチも後処理として削除できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: PRは正常にマージされたが、`failed to delete local branch docs/konnect-update-design-brief: ... used by worktree .../kong-azure-obo-demo-konnect-update`でコマンドが非ゼロ終了した
+- **原因**: `docs/konnect-update-design-brief`ブランチが別worktreeでcheckout中のため、Gitがローカルブランチ削除を拒否した
+- **対処・回避方法**: `gh pr view 14`でPRの`MERGED`状態とmerge commit `a79371b350c9490c59e94450b92f94617b21deca`を確認した。別worktreeとローカルブランチは破壊せず保持し、実装は更新後の`main`を基点とする
+
+## 2026-09-20 07:52 JST sandbox内からDocker socketへ接続できない
+- **何を期待していたか**: `docker image inspect kong/kong-gateway:3.16.0.0`で対象イメージのローカル有無をread-only確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `permission denied while trying to connect to the docker API at unix:///Users/shinichi.hashitanikonghq.com/.docker/run/docker.sock`で失敗した
+- **原因**: Codex sandboxからユーザーのDocker socketへのアクセスが許可されていないため
+- **対処・回避方法**: Docker操作自体の失敗とは判断せず、同じread-onlyコマンドをsandbox外の承認済み実行として再試行する
+
+## 2026-09-20 07:54 JST `TESTING.md`にテストアカウントの平文パスワードが残存
+- **何を期待していたか**: 認証情報がコード・文書・commit履歴へ平文保存されていないこと
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `TESTING.md`のテストユーザー表に、Entra IDデモアカウント3件のパスワードが平文で記載されていた
+- **原因**: 初回実機検証時の操作手順へ認証情報を直接記載していたため
+- **対処・回避方法**: 現在の文書から値を除去し、安全な保管先から取得する表記へ変更した。既存commit履歴には残るため、対象パスワードのローテーションは別途必要
+
+## 2026-09-20 07:55 JST ローカル環境に`gitleaks`が未導入
+- **何を期待していたか**: `gitleaks`で現在の作業ツリーに対するsecret scanを実行できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `gitleaks version`が`No such file or directory`で失敗した
+- **原因**: ローカル環境に`gitleaks`実行ファイルがインストールされていないため
+- **対処・回避方法**: 今回はリポジトリ内の既知secret名・旧credential記載箇所を直接検索し、差分レビューで平文値が追加されていないことを確認する。専用scanner導入は本PRのスコープ外
+
+## 2026-09-20 07:57 JST sandbox内でTerraform provider schemaを読み込めない
+- **何を期待していたか**: `terraform -chdir=terraform validate`で既存Terraform構成の妥当性を確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `azuread`、`azurerm`、`random`の各providerで`Unrecognized remote plugin message`と`Failed to read any lines from plugin's stdout`が発生した。provider binaryのarchitecture・permission自体は正しかった
+- **原因**: Codex sandbox内でTerraform provider subprocessの起動またはplugin handshakeが制限された可能性が高い
+- **対処・回避方法**: 構成エラーとは判断せず、同じvalidateをsandbox外の承認済み実行として再試行する
+
+## 2026-09-20 07:57 JST Terraform planが既存デモを認識せず26件すべてを新規作成予定
+- **何を期待していたか**: 既存Azure/EntraリソースとTerraform stateが対応し、今回のCompose変更に伴うTerraform差分がないこと
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `terraform -chdir=terraform plan`が`Plan: 26 to add, 0 to change, 0 to destroy`を返した。`terraform/terraform.tfstate`とrepository rootの`terraform.tfstate`はいずれも約180 bytesで、`terraform state list`は空だった
+- **原因**: 現在ローカルにあるTerraform stateが空で、過去に作成したAzure/Entraリソースとのstate対応が失われているか、別のstate保存先を使っていた可能性がある
+- **対処・回避方法**: `terraform apply`は実行しない。既存resourceの所在と正しいstateを確認し、必要ならimport/recovery方針を別途決めるまでTerraformによる変更を禁止する
+
+## 2026-09-20 07:59 JST sandbox内でGit index lockを作成できない
+- **何を期待していたか**: 変更対象を明示した`git add`で6ファイルだけをstageできること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `.git/index.lock: Operation not permitted`でstage前に失敗した
+- **原因**: Codex sandboxではrepositoryの`.git`配下への書き込みが許可されていないため
+- **対処・回避方法**: 対象pathを明示した同じ`git add`をsandbox外の承認済み実行として再試行する。未追跡の`AGENTS.md`はstage対象に含めない
+
+## 2026-09-20 08:16 JST Konnect bootstrap入力とテストユーザーpassword lifecycleを確定
+- **確認結果**: Konnectの既存Control Plane 162件はすべてUS geoで、`azure-obo-demo`という同名CPは存在しなかった。新規CP名は`azure-obo-demo`、geoはUS（North America）とする
+- **password lifecycle**: テストユーザーのpasswordはTerraformの`random_password.test_user`が作成時に生成し、sensitive outputとしてのみ参照する。ユーザーをデモごとに作成・destroyする運用では再作成時に新しい値となる
+- **対処・運用方針**: passwordを文書へ平文保存しない。通常のデモサイクル外のローテーションは利用者の明示指示なしに実行しない。既存stateが空の問題は別途解消が必要
+
+## 2026-09-20 08:17 JST `gh pr edit`がProjects Classic関連GraphQLエラーで失敗
+- **何を期待していたか**: PR #15の本文を、確定したUS geo・Control Plane名・password運用へ更新できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `GraphQL: Projects (classic) is being deprecated in favor of the new Projects experience`で本文更新前に失敗した
+- **原因**: `gh pr edit`がPR本文編集と無関係なProjects ClassicのGraphQL fieldも取得し、GitHub側の廃止仕様に当たったため
+- **対処・回避方法**: Pull Requests REST APIのPATCHへ切り替え、本文のみを更新する
+
+## 2026-09-20 08:20 JST Konnect MCPが対象外Organizationを参照していた
+- **何を期待していたか**: 利用者指定の対象Org `hashi-sandbox`についてControl Plane一覧とgeoを確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `get_organizations_me`で、現在のKonnect MCPが`Kong Inc. - SE Team`（login path `se-kong`）を参照していることが判明した。08:16の「162 CPは全てUS、同名CPなし」という確認はこの別Orgに対する結果だった
+- **原因**: live stateを読む前にMCP credentialのOrganization scopeを確認しなかったため
+- **対処・回避方法**: 08:16の結果を対象Orgの証跡として使用しない。設計文書は利用者指定の`hashi-sandbox`へ訂正し、同名CP有無・endpoint・IDは対象Orgへ認証した後に再確認する
+
+## 2026-09-20 08:20 JST `kongctl`で対象Organizationを代替確認できない
+- **何を期待していたか**: `kongctl get organization`と`kongctl get me`で、MCPとは別に現在のOrganization scopeをread-only確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: sandbox内では`~/.config/kongctl/logs/kongctl.log: operation not permitted`、sandbox外では`authentication token not available`で停止した
+- **原因**: sandboxのログ書込制約に加え、ローカル`kongctl`にPATまたはlogin sessionが設定されていないため
+- **対処・回避方法**: `hashi-sandbox`用credentialを明示的に接続するまで、`kongctl`からのlive確認・変更は行わない
+
+## 2026-09-20 08:37 JST 最初に開いたChromeプロファイルが対象Konnect Organizationへ参加していなかった
+- **何を期待していたか**: 既存のKonnect Organization `hashi-sandbox`へログインし、Control Planeを確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: 最初のChromeプロファイルでは既存Orgではなく新規Organization作成画面が表示された。利用者が開いた仕事用Chromeプロファイルへ切り替えると、USリージョンの`hashi-sandbox`と既存Control Plane 20件を確認できた
+- **原因**: 最初に使ったChromeプロファイルのGoogle identityが`hashi-sandbox`へ所属していなかったため
+- **対処・回避方法**: Konnect UIの変更前に、ヘッダーのOrganization名とURLのgeoを必ず確認する。今回は`hashi-sandbox`かつ`/us/`を確認した後、対象名`azure-obo-demo`が存在しないことをUI検索で再確認した
+
+## 2026-09-20 08:46 JST Chrome UIの作成フォームを閉じる操作前にComputer Use sessionが解除された
+- **何を期待していたか**: Terraform管理へ切り替えるため、未送信のKonnect Control Plane作成フォームをCancelできること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: 最初のCancel操作は、Chromeに対するComputer Useがactiveでないため画面状態を再取得するよう要求され、操作されなかった
+- **原因**: 利用者の追加指示を挟んだ時点で、Chrome UI操作sessionのactive stateが解除されていた
+- **対処・回避方法**: 画面状態を再取得してフォーム内容が未送信であることを確認し、その後Cancelを実行した。Control PlaneはUIから作成されていない
+
+## 2026-09-20 08:48 JST sandbox内の`terraform init`がTerraform Registryの名前解決に失敗
+- **何を期待していたか**: `terraform/konnect/`で公式`kong/konnect`、`hashicorp/tls`、`hashicorp/local` providerを取得し、lock fileを生成できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `registry.terraform.io`のdiscovery document取得時に`dial tcp: lookup registry.terraform.io: no such host`となり、3 providerすべてのversion queryが失敗した
+- **原因**: Codex sandboxのnetwork/DNS制限
+- **対処・回避方法**: provider構成エラーとは判断せず、同じ`terraform init`をsandbox外の承認済み実行として再試行する
+
+## 2026-09-20 08:49 JST sandbox内でKonnect rootのprovider schemaを読み込めない
+- **何を期待していたか**: `terraform/konnect/`で`terraform validate`と`terraform providers schema -json`を実行できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `konnect`、`tls`、`local`の全providerで`Unrecognized remote plugin message`と`Failed to read any lines from plugin's stdout`が発生した。provider binaryのarchitecture・permissionは正しかった
+- **原因**: 既存Azure rootで確認済みの事象と同じく、Codex sandboxがTerraform provider subprocessの起動またはplugin handshakeを制限している可能性が高い
+- **対処・回避方法**: HCLエラーとは判断せず、validateとschema inspectionをsandbox外の承認済み実行として再試行する
+
+## 2026-09-20 08:51 JST local Terraform stateが秘密鍵を含む状態でmode `0644`になった
+- **何を期待していたか**: Data Plane private keyを含む`terraform/konnect/terraform.tfstate`がownerのみ読み書き可能なpermissionで作成されること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: apply後のstateはmode `0644`で、同一端末の他ユーザーから読み取り可能な設定だった。生成した`tls.crt`と`tls.key`自体は指定どおり`0600`だった
+- **原因**: local backendがstate fileを既定のprocess umaskに従って作成し、HCLからfile permissionを指定できないため
+- **対処・回避方法**: stateを直ちに`chmod 600`へ変更した。stateはgitignore対象のまま維持し、apply後にpermissionを確認する手順をREADMEへ明記する
+
+## 2026-09-20 08:53 JST sandbox内からDocker socketへ接続できない
+- **何を期待していたか**: Terraform生成のCompose env fragmentを使い、現在のData Plane稼働状態を`docker compose ps`でread-only確認できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `permission denied while trying to connect to the docker API`でDocker socketへの接続が拒否された
+- **原因**: Codex sandboxからユーザーのDocker Desktop socketへのアクセスが制限されているため
+- **対処・回避方法**: Compose構成の展開確認はsandbox内で完了済み。稼働確認・起動は同じenv file指定でsandbox外の承認済み実行として行う
+
+## 2026-09-20 08:57 JST Azure/Entraの有効なbackup stateを発見
+- **何を期待していたか**: 空になっている`terraform/terraform.tfstate`に対応するstate recovery元を特定できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `terraform/terraform.tfstate.backup`は現在stateと同じlineageで、serial 94、28 resource address、必要なsensitive outputを保持していた。現在stateはserial 124だがresource/outputが空。backupを明示したplanは`No changes`だった
+- **原因**: 過去のTerraform操作で空stateが現在stateとして保存された一方、その直前の有効stateが自動backupに残っていた
+- **対処・回避方法**: backupは現在HCLとの整合性が確認できた。ただし`-state` flagはdeprecated warningを出すため恒久運用には使用しない。現在の空stateを退避した上で、利用者承認後に`terraform state push -force`でbackupを正式stateへ復旧し、通常planでlive refreshを確認する
+
+## 2026-09-20 09:04 JST backup stateは復旧元ではなくdestroy前のstale stateだった
+- **何を期待していたか**: backup stateを正式stateへpushした後の通常planで、Azure/Entra実体とstateが一致して`No changes`になること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: live refreshによりApp Registration、Service Principal、Security Group、test user、Azure OpenAI、resource group等が実体側で削除済みと判明し、planは`23 to add, 0 to change, 0 to destroy`を提示した。`-refresh=false`での事前planはstateとHCLの一致しか確認せず、live resourceの存在を証明していなかった
+- **原因**: 空stateは破損ではなく過去の`terraform destroy`後の正しい状態で、`.backup`はdestroy直前のstateだった可能性が高い
+- **対処・回避方法**: applyは実行しない。事前退避したserial 124の空stateを直ちに正式stateへ戻す。今後、backup stateの復旧可否は必ずlive refresh結果で判断し、`-refresh=false`の結果だけを根拠にしない
+
+## 2026-09-20 09:07 JST RTKのfiltered `git diff --cached --check`が診断を表示しなかった
+- **何を期待していたか**: staged差分のwhitespace checkで、問題があれば対象file/lineが表示されること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: 通常のRTK経由ではoutputなしのexit 2となった。`rtk proxy`でunfiltered実行すると、Terraform 3 fileのEOFに余分な空行があることを確認できた
+- **原因**: RTKの`git diff` output filterが`--cached --check`の診断を抑制したため
+- **対処・回避方法**: 対象3 fileの余分なEOF空行を除去した。staged whitespace checkは結果が不明瞭な場合に`rtk proxy git diff --cached --check`で再確認する
+
+## 2026-09-20 09:08 JST sandbox内からGitHub APIへ接続できない
+- **何を期待していたか**: PR #15の現在本文を取得し、Terraform実装とlive検証結果へ更新できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `gh pr view`が`error connecting to api.github.com`で失敗した
+- **原因**: Codex sandboxのnetwork制限
+- **対処・回避方法**: 同じread/update操作をsandbox外の承認済み実行として再試行する

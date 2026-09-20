@@ -1,6 +1,6 @@
-# Kong Gateway 3.16 (beta) — Entra ID OBO × AI MCP Proxy ACL デモ
+# Kong Gateway 3.16 — Entra ID OBO × AI MCP Proxy ACL デモ
 
-Chat AIエージェントからMCP経由でバックエンドAPIへアクセスするデモです。「エージェントとしてログインする権限」と「個々のAPI（Tool）を実行する権限」を分離し、Kong Gateway 3.16のOpenID ConnectプラグインのOBO（On-Behalf-Of）機能でトークン交換、AI MCP ProxyのACL機能でTool単位の認可を行う一連の流れを実地検証します。**Konnectは使用しません**（Kong Gateway単体、Postgres backed）。
+Chat AIエージェントからMCP経由でバックエンドAPIへアクセスするデモです。「エージェントとしてログインする権限」と「個々のAPI（Tool）を実行する権限」を分離し、Kong Gateway 3.16のOpenID ConnectプラグインのOBO（On-Behalf-Of）機能でトークン交換、AI MCP ProxyのACL機能でTool単位の認可を行う一連の流れを実地検証します。Kong GatewayはDocker Compose上のself-hosted Data Planeとして起動し、Konnect Control Planeから設定とライセンスを受信します。
 
 着手前の基本設計は [docs/design-brief.md](./docs/design-brief.md) を参照してください。個別の設計判断（検討した選択肢・判断基準）は [docs/decisions/](./docs/decisions/) に記録します。
 
@@ -20,17 +20,27 @@ Chat UI（Next.js）はKongの認証を全面的に信頼し、独自のOAuthク
 
 ## 必要なもの
 - Docker / Docker Compose
-- Kong Enterpriseライセンス
-- Terraform >= 1.5（`azuread` provider）
+- Kong KonnectのorganizationとGateway Control Plane
+- Control Planeへ登録済みのData Plane用mTLS certificate/key
+- decK >= 1.40.0と対象Control Planeを操作できるKonnect token
+- Terraform >= 1.5（`azuread` / `azurerm` / `kong/konnect` provider）
 - Microsoft Entra IDテナントと管理者権限（App Registration・Security Group作成のため）
 - Azure OpenAIリソース
 
 ## 技術スタック
-- **Kong Gateway**: `kong/kong-gateway-dev:pr-21082-ubuntu`（ベータ、Entra ID OBO対応ビルド）、Postgres backed、decKで宣言的管理
-- **Entra ID連携**: Terraform（`azuread` provider）
+- **Kong Gateway**: `kong/kong-gateway:3.16.0.0`、Konnect管理のself-hosted Data Plane（DB-less）、decKで宣言的管理
+- **Konnect / Entra ID連携**: Terraform（Konnectは`terraform/konnect/`、Azure/Entra IDは`terraform/`の独立state）
 - **Chat UI/エージェント**: Next.js（App Router）+ Vercel AI SDK
 - **デモAPI（Customer Inquiry/Customer Details）**: TypeScript + Bun
 - **実LLM**: Azure OpenAI（`ai-proxy-advanced`経由で抽象化）
+
+## Konnect bootstrap入力
+
+- **Organization**: `hashi-sandbox`
+- **Geo**: North America / US（Konnect API: `https://us.api.konghq.com`）
+- **Control Plane名**: `azure-obo-demo`
+- **Data Plane**: このリポジトリのDocker Composeで起動するself-hosted Data Plane
+- **管理境界**: Control PlaneとData Plane client certificateは`terraform/konnect/`、Gateway entityは既存の`kong/*.yaml`をdecKで管理する。Azure/Entra IDの`terraform/`とはstateを分離する（判断根拠: [ADR-0003](./docs/decisions/0003-konnect-terraform-state-boundary.md)）
 
 ## デモAPI（Customer Inquiry/Customer Details）
 
@@ -63,12 +73,50 @@ Terraform（`terraform/`配下）は、クライアントシークレット等�
 4. 疎通確認: `cd terraform && terraform init && terraform plan`
    - `auth_check` outputに想定通りのテナントID/サブスクリプションIDが出れば成功（この段階ではリソースは何も作成されない）
 
+### Konnect Control Plane（Terraform）
+
+Konnect platform resourceはAzure/Entra IDとは別の`terraform/konnect/` rootで管理する。認証情報はコードやtfvarsへ書かず、実行時環境変数で渡す。
+
+```bash
+export KONNECT_TOKEN='<personal-access-token>'
+# System Accountを使う場合はKONNECT_SPATを使用する
+
+cd terraform/konnect
+terraform init
+terraform validate
+terraform plan -out=tfplan
+terraform apply tfplan
+
+# local stateにはData Plane private keyが含まれるため、apply後に必ず制限する
+chmod 600 terraform.tfstate
+cd ../..
+```
+
+このapplyで次を作成する。
+
+- USリージョンのself-managed Control Plane `azure-obo-demo`
+- Docker Compose Data Plane用のRSA key / self-signed client certificate
+- Control Planeへのclient certificate登録
+- `secrets/konnect/tls.crt`、`secrets/konnect/tls.key`
+- Composeへ渡す`secrets/konnect/compose.env`
+
+`terraform/konnect/terraform.tfstate`と`secrets/`はgitignore対象。stateにも秘密鍵が含まれるため、共有・commitしない。
+
 ### Kong Gateway（decK宣言的設定）
 `kong/`配下がRoute別のdecK state file（`login-route.yaml`: Chat UIログイン、`mcp-route.yaml`: OBO+ACL、`llm-route.yaml`: Azure OpenAI抽象化）。秘匿値は平文で書かず、decKの環境変数テンプレート`${{ env "DECK_XXX" }}`（`DECK_`プレフィックス必須）で参照する。
 
-1. Docker Composeを起動: `cp .env.example .env` を編集の上 `docker compose up -d`（Kong Enterpriseライセンスが必要）
-2. Terraform outputから必要な値を環境変数へ展開:
+1. `cp .env.example .env`を実行し、Entra ID / Azure OpenAI等のlocal設定を入力する。Konnect endpointとcertificate pathはTerraform生成の`secrets/konnect/compose.env`から後勝ちで読み込む。
+2. Compose構成を確認してからData Planeを起動する。local Postgres、migrations、Admin API、`KONG_LICENSE_DATA`は使用しない。
    ```bash
+   docker compose --env-file .env --env-file secrets/konnect/compose.env config --quiet
+   docker compose --env-file .env --env-file secrets/konnect/compose.env up -d
+   ```
+3. Terraform outputとKonnect接続情報から、decKが使う環境変数を設定する:
+   ```bash
+   export DECK_KONNECT_TOKEN='<personal-or-system-access-token>'
+   export DECK_KONNECT_ADDR='https://us.api.konghq.com'
+   export DECK_KONNECT_CONTROL_PLANE_NAME='azure-obo-demo'
+
    cd terraform
    export DECK_ENTRA_ISSUER="https://login.microsoftonline.com/$(terraform output -raw entra_tenant_id)/v2.0"
    export DECK_MIDDLE_TIER_CLIENT_ID=$(terraform output -raw middle_tier_client_id)
@@ -84,8 +132,13 @@ Terraform（`terraform/`配下）は、クライアントシークレット等�
    export DECK_SESSION_SECRET=$(openssl rand -base64 32)
    cd ..
    ```
-3. ローカルでの構文・スキーマ検証（Kongへの接続不要）: `deck file validate kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`
-4. 実際のKongへ反映: `deck gateway sync kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`
+4. ローカルでの構文検証（Kongへの接続不要）: `deck file validate kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`
+5. 対象Control Planeに対するonline validationと差分確認:
+   ```bash
+   deck gateway validate kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml
+   deck gateway diff kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml
+   ```
+6. 差分をレビューし、人間の明示承認を得た後だけ`deck gateway sync kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`で反映する。
 
 ネットワーク分離の考え方（MCP/LLM Routeをブラウザから到達不可にする方式と、その実際の限界）は[ADR-0002](./docs/decisions/0002-mcp-llm-route-network-isolation.md)を参照。
 
@@ -111,6 +164,9 @@ bun run dev   # http://localhost:3000 単体では認証ヘッダーが無いた
 
 ## クリーンアップ
 ```bash
-docker compose down -v
-terraform destroy
+docker compose down
+terraform -chdir=terraform/konnect destroy
+terraform -chdir=terraform destroy
 ```
+
+2つのdestroyは別stateを対象にする。Azure/Entra ID側の現在stateが空の場合、それはデモresourceのdestroy完了後を表すため、再作成は新しいplanをレビューしてから行う。destroy前の`.backup`を現在stateへ復旧しない。

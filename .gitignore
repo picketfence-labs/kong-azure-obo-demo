@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+secrets/
 
 # Claude Code local overrides (machine-specific additionalDirectories etc.)
 .claude/settings.local.json

@@ -1,23 +1,45 @@
 # 動作確認手順
 
-このページだけを見れば、design-brief（[docs/design-brief.md](./docs/design-brief.md) 5節）が定めた検証項目を一通り実地確認できます。セットアップ手順（`docker compose up` / `deck gateway sync`）は済んでいる前提です。未セットアップの場合は [README.md](./README.md) の「セットアップ手順」を先に行ってください。
+このページは既存デモの詳細な手動E2E手順です。今回のKonnect移行で必須とする範囲は、design-brief（[docs/design-brief.md](./docs/design-brief.md) 7節）のスモークテストに限定します。セットアップ手順（Konnect Data Plane接続、`docker compose up`、承認済み`deck gateway sync`）は済んでいる前提です。未セットアップの場合は [README.md](./README.md) の「セットアップ手順」を先に行ってください。
+
+## Konnect移行preflight（2026-09-20）
+
+実環境へ変更を加えない範囲で、次を確認済みです。
+
+- `docker compose --env-file .env.example config --quiet`: 成功。Postgres、migrations、local Admin API、local license設定が展開結果に含まれない
+- `docker pull kong/kong-gateway:3.16.0.0`: 成功（digest `sha256:e2678b4cb534fc9d6a17288d83457d6cbea235a6331dc4982e021300ccb668c4`）
+- `docker run --rm kong/kong-gateway:3.16.0.0 kong version`: `Kong Enterprise 3.16.0.0`
+- 一時的な自己署名certificate/keyをread-only mountし、Composeと同じData Plane環境変数で`kong prepare`: 成功。local licenseは未設定
+- `deck file validate kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`: decK 1.53.1で成功（非機密のplaceholder値を使用）
+- `terraform -chdir=terraform validate`: 成功
+- `terraform -chdir=terraform state list`: 空。live refreshにより、Azure/Entraデモresourceが前回destroy済みであることを確認
+- `terraform -chdir=terraform plan`: 新しいデモ環境をprovisionする場合は`26 to add`。Azure OpenAIのコストを伴うため、明示承認後のみapplyする
+- `terraform -chdir=terraform/konnect validate`: 成功
+- `terraform -chdir=terraform/konnect apply`: `azure-obo-demo` Control Plane、Data Plane client certificate、local certificate/key、Compose用env fragmentの8 resourceを作成
+- `docker compose --env-file .env --env-file secrets/konnect/compose.env config --quiet`: 成功
+- 同じenv file指定で起動したKong Gateway `3.16.0.0`はhealthy。Control Planeへのping、analytics websocket接続、KonnectからのEnterprise license受信を実ログで確認
+
+未実施: `deck gateway validate`/`diff`/`sync`、ログイン/OBO/ACL/LLMのスモークテスト、Observability反映。Azure/EntraデモresourceをTerraformでprovisionした後に実施する。
 
 ## アクセス先
 
 | 用途 | URL |
 |---|---|
 | Chat UI（ここからログインして操作します） | http://localhost:8000/ |
-| Kong Admin API（decK同期状態の確認用、通常は使いません） | http://localhost:8001/ |
+
+local Admin APIは公開しません。Gateway設定とData Plane状態はKonnect Control Planeで確認します。
 
 ## テストユーザー
 
 Entra IDテナント上に作成済みの3ユーザーです。全員同じパスワード体系のダミーアカウントで、実在の人物とは無関係です。
 
-| ユーザー | ログインID (UPN) | パスワード | 割り当てられた権限 |
+| ユーザー | ログインID (UPN) | 認証情報 | 割り当てられた権限 |
 |---|---|---|---|
-| ① ログイン不可の反例 | `demo-no-agent-access@hashipicketfence.onmicrosoft.com` | `08yv)Gg1*EwR2hO#*ItHsyXt` | なし（AIエージェントへのアクセス自体が未割当） |
-| ② Inquiryのみ | `demo-inquiry-only@hashipicketfence.onmicrosoft.com` | `V+F8(U*6wd4h))T(wM12kd0p` | 顧客検索（Customer Inquiry）のみ |
-| ③ 両方 | `demo-both-apis@hashipicketfence.onmicrosoft.com` | `e6(lx02!QzbgZ!&FtAQKL=mP` | 顧客検索＋顧客詳細（Customer Inquiry・Customer Details両方） |
+| ① ログイン不可の反例 | `demo-no-agent-access@hashipicketfence.onmicrosoft.com` | 安全な保管先から取得 | なし（AIエージェントへのアクセス自体が未割当） |
+| ② Inquiryのみ | `demo-inquiry-only@hashipicketfence.onmicrosoft.com` | 安全な保管先から取得 | 顧客検索（Customer Inquiry）のみ |
+| ③ 両方 | `demo-both-apis@hashipicketfence.onmicrosoft.com` | 安全な保管先から取得 | 顧客検索＋顧客詳細（Customer Inquiry・Customer Details両方） |
+
+パスワードは利用者が固定値を設定するのではなく、Terraformの`random_password.test_user`が各ユーザー作成時に24文字で生成し、`azuread_user.password`へ渡します。正しいTerraform stateがある場合のみ、sensitive output `test_user_credentials`から取得できます。デモ終了時にユーザーと`random_password` resourceをdestroyし、次回applyで再作成すれば新しい値になります。通常のデモサイクル外でのローテーションは、明示指示がない限り行いません。
 
 複数ユーザーを行き来する場合、Entra IDのアカウント選択画面で「別のアカウントを使用する」を選ぶか、ブラウザのプライベートウィンドウを使うとスムーズです。
 
