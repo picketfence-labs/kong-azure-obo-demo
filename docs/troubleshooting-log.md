@@ -340,3 +340,9 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: `demo-inquiry-only`は東京都・女性の検索で中村美咲（顧客ID `11b960cb-ab54-42d8-af60-516216c1fe91`）を取得できたが、詳細取得要求には利用可能なToolがない旨が返った。`demo-both-apis`は同じ検索から詳細取得まで連続実行し、年齢・住所・電話番号・メール・マイナンバー相当を含む全フィールドを取得した
 - **原因**: 想定どおり、Entra ID OBOで交換されたtokenのSecurity Group claimに基づき、AI MCP ProxyがユーザーごとのTool可視性を制御した。Kong logでは両ユーザーのtoken exchangeを確認し、両方権限ユーザーの検索・詳細backend requestはいずれもHTTP 200だった
 - **対処・回避方法**: 追加のcode/config変更は不要。デモごとに対象ユーザーのAuthenticator登録を行い、ログアウト後はMicrosoft側のサインアウト完了まで待ってから次のユーザーへ切り替える
+
+## 2026-09-20 12:55 JST `gh pr edit`がProjects classic参照エラーで失敗した
+- **何を期待していたか**: 解消済みのMFA blockerとOBO/ACL実測結果に合わせて、PR #22のタイトルと本文を更新できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `gh pr edit`が`GraphQL: Projects (classic) is being deprecated`で終了し、PR metadataは更新されなかった
+- **原因**: `gh pr edit`のGraphQL queryがPR編集に不要なProjects classicの`projectCards`も参照し、GitHub側の廃止状態により失敗した
+- **対処・回避方法**: PR本体のREST endpointを`gh api --method PATCH`で直接更新し、Projects fieldを参照しない
