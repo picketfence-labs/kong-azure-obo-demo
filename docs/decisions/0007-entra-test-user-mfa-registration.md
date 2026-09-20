@@ -46,10 +46,12 @@ Terraformで作成した`demo-inquiry-only`ユーザーのUPN/passwordはEntra I
 ## 想定していたこと vs 実際どうだったか
 - 当初はTerraform生成passwordだけでテストユーザーが対話ログインできると想定していた。
 - 実際にはpassword受理後にAuthenticator登録が必須となり、OBO/ACLのbrowser E2Eへ進めなかった。
-- 選択肢1の決定後、実際のAuthenticator登録とOBO/ACL検証結果を追記する。
+- 選択肢1の決定後、`demo-inquiry-only`と`demo-both-apis`をMicrosoft Authenticatorへ手動登録し、どちらもChat UIまでログインできた。
+- `demo-inquiry-only`では`customer_inquiry`による東京都・女性の検索は成功し、続く詳細取得要求は利用可能なToolがない旨の応答となった。`demo-both-apis`では同じ検索から`customer_details`まで連続実行され、住所・電話番号・マイナンバー相当を含む詳細を取得できた。
+- Kong logでも、両ユーザーについてEntra ID OBO token exchangeとMCP `tools/list`/`tools/call`を確認した。`demo-both-apis`では検索APIと詳細APIがともにHTTP 200となった。
 
 ## 影響・トレードオフ
-- 選択肢1または4は人・端末への依存を残す。
+- 選択肢1は人・端末への依存を残し、Terraformでテストユーザーをdestroyして再作成するたびにAuthenticator登録をやり直す必要がある。
 - 選択肢2は既存tenant全体のsecurity設計に影響する。
 - 選択肢3は最も安全に分離できるが、Azure/Entra resource移行の作業量が大きい。
 

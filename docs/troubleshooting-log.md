@@ -328,3 +328,15 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: `https://cloud.konghq.com`は既存Organizationではなく`Create an Organization`へredirectされ、org switcherへ直接移動しても同画面へ戻った。新規Orgは作成していない
 - **原因**: 08:37に記録した事象と同様、Computer Useから新規tabを開いたChrome sessionが`hashi-sandbox`所属identity/sessionを利用できていない
 - **対処・回避方法**: 誤ったOrgでの操作は行わず停止した。underlying trafficはKong access logの`/llm/chat/completions` 200とAzure OpenAI応答で証明済み。対象Chrome profile/sessionが再度利用可能になった後、`azure-obo-demo`かつ直近時間範囲のLLM固有datasetで確認する
+
+## 2026-09-20 12:15 JST 古いAuthenticator登録sessionが`BadRequest`になった
+- **何を期待していたか**: 利用者がADR-0007の選択肢1を承認後、保留していた「次へ」からAuthenticatorのQR code表示へ進めること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `mysignins.microsoft.com/register`へ遷移した直後、`code=BadRequest`となり、「タイムアウトなどが原因である可能性があります」と表示された（correlation ID `92877c45-c586-4444-89f2-5f53f1c86535`）
+- **原因**: password受理から約20分経過した古い登録sessionを再利用したため、登録用transactionが失効した可能性が高い
+- **対処・回避方法**: Authenticatorやtenant policyの障害とは断定せず、Chat UIから新しい認可・password入力を開始して登録画面を再生成した。新しいsessionでは`demo-inquiry-only`と`demo-both-apis`の登録がともに成功し、Chat UIへ戻った
+
+## 2026-09-20 12:49 JST Konnect移行後のOBO/ACL browser smokeが成功した
+- **何を期待していたか**: ADR-0007で決めた手動Authenticator登録後、`demo-inquiry-only`は顧客検索だけ、`demo-both-apis`は顧客検索と詳細取得の両方を実行できること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: `demo-inquiry-only`は東京都・女性の検索で中村美咲（顧客ID `11b960cb-ab54-42d8-af60-516216c1fe91`）を取得できたが、詳細取得要求には利用可能なToolがない旨が返った。`demo-both-apis`は同じ検索から詳細取得まで連続実行し、年齢・住所・電話番号・メール・マイナンバー相当を含む全フィールドを取得した
+- **原因**: 想定どおり、Entra ID OBOで交換されたtokenのSecurity Group claimに基づき、AI MCP ProxyがユーザーごとのTool可視性を制御した。Kong logでは両ユーザーのtoken exchangeを確認し、両方権限ユーザーの検索・詳細backend requestはいずれもHTTP 200だった
+- **対処・回避方法**: 追加のcode/config変更は不要。デモごとに対象ユーザーのAuthenticator登録を行い、ログアウト後はMicrosoft側のサインアウト完了まで待ってから次のユーザーへ切り替える
