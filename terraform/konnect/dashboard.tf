@@ -1,12 +1,4 @@
 locals {
-  dashboard_time_range = {
-    relative = {
-      type       = "relative"
-      time_range = "24h"
-      tz         = "Asia/Tokyo"
-    }
-  }
-
   konnect_ui_region = replace(replace(var.konnect_server_url, "https://", ""), ".api.konghq.com", "")
 }
 
@@ -54,7 +46,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   dimensions  = ["time", "route"]
                   filters     = []
                   granularity = "fiveMinutely"
-                  time_range  = local.dashboard_time_range
                   limit       = 50
                 }
               }
@@ -85,7 +76,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   dimensions  = ["time", "route"]
                   filters     = []
                   granularity = "fiveMinutely"
-                  time_range  = local.dashboard_time_range
                   limit       = 50
                 }
               }
@@ -113,10 +103,9 @@ resource "konnect_dashboard" "azure_obo_demo" {
                 api_usage = {
                   datasource  = "api_usage"
                   metrics     = ["error_rate"]
-                  dimensions  = ["time", "route"]
+                  dimensions  = ["route", "time"]
                   filters     = []
                   granularity = "fiveMinutely"
-                  time_range  = local.dashboard_time_range
                   limit       = 50
                 }
               }
@@ -145,7 +134,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["request_count"]
                   dimensions = ["route", "principal"]
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }
@@ -180,7 +168,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   dimensions  = ["time"]
                   filters     = []
                   granularity = "fiveMinutely"
-                  time_range  = local.dashboard_time_range
                   limit       = 50
                 }
               }
@@ -213,7 +200,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   dimensions  = ["time", "mcp_tool_name"]
                   filters     = []
                   granularity = "fiveMinutely"
-                  time_range  = local.dashboard_time_range
                   limit       = 50
                 }
               }
@@ -244,7 +230,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   dimensions  = ["time", "mcp_tool_name"]
                   filters     = []
                   granularity = "fiveMinutely"
-                  time_range  = local.dashboard_time_range
                   limit       = 50
                 }
               }
@@ -275,7 +260,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   dimensions  = ["time", "mcp_tool_name"]
                   filters     = []
                   granularity = "fiveMinutely"
-                  time_range  = local.dashboard_time_range
                   limit       = 50
                 }
               }
@@ -304,7 +288,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["request_count"]
                   dimensions = ["principal", "mcp_method"]
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }
@@ -333,7 +316,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["request_count"]
                   dimensions = ["mcp_method", "mcp_tool_name"]
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }
@@ -365,7 +347,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["ai_request_count"]
                   dimensions = []
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }
@@ -395,7 +376,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["llm_latency_average"]
                   dimensions = []
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }
@@ -425,7 +405,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["error_rate"]
                   dimensions = []
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }
@@ -455,7 +434,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["total_tokens"]
                   dimensions = []
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }
@@ -485,7 +463,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["prompt_tokens"]
                   dimensions = []
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }
@@ -515,7 +492,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["completion_tokens"]
                   dimensions = []
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }
@@ -548,7 +524,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   dimensions  = ["time", "ai_response_model"]
                   filters     = []
                   granularity = "fiveMinutely"
-                  time_range  = local.dashboard_time_range
                   limit       = 50
                 }
               }
@@ -577,7 +552,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["total_tokens"]
                   dimensions = ["ai_response_model", "ai_provider"]
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }
@@ -606,7 +580,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["ai_request_count"]
                   dimensions = ["principal", "application"]
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }
@@ -635,7 +608,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["total_tokens"]
                   dimensions = ["principal", "application"]
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }
@@ -666,7 +638,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   dimensions  = ["time", "ai_response_model"]
                   filters     = []
                   granularity = "fiveMinutely"
-                  time_range  = local.dashboard_time_range
                   limit       = 50
                 }
               }
@@ -695,7 +666,6 @@ resource "konnect_dashboard" "azure_obo_demo" {
                   metrics    = ["cost"]
                   dimensions = ["ai_response_model", "ai_provider"]
                   filters    = []
-                  time_range = local.dashboard_time_range
                   limit      = 50
                 }
               }

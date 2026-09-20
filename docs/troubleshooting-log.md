@@ -376,3 +376,9 @@ CLAUDE.md「セキュリティ・クラウド認証」の要求に基づく記�
 - **実際どうだったか**（エラーメッセージ・症状を具体的に）: `terraform validate`でAPI、Agentic、LLM queryの3 dimension指定がすべて`list must contain at most 2 elements`となった
 - **原因**: `kong/konnect-beta` 0.22.0の生成文書はTop Nを最大3 dimensionと説明する一方、実際のprovider schema validatorは各queryのdimension数を最大2に制限している
 - **対処・回避方法**: 実行時schemaを正として各Top N queryを2 dimensionへ削減した。client識別は`principal`と`application`、MCPは`principal`と`mcp_method`または`mcp_method`と`mcp_tool_name`を組み合わせる
+
+## 2026-09-20 15:27 JST Time Range削除planにdimension順序のdriftが混在した
+- **何を期待していたか**: 各tile固有の`time_range`削除だけがDashboardのin-place更新として計画されること
+- **実際どうだったか**（エラーメッセージ・症状を具体的に）: live refresh後のplanでは、Time Range削除に加えて`Error rate by route`のdimensionsをlive側`["route", "time"]`からHCL側`["time", "route"]`へ戻す差分が1件検出された
+- **原因**: Konnect UIでの確認・保存後、当該tileのdimension順序が作成時のHCLと異なる順序でlive resourceへ保存されていた。UIまたはAPIによる正規化か手動保存時の並べ替えかは未確定
+- **対処・回避方法**: 今回の変更へ意図しないdimension順序変更を混ぜないよう、HCLを現在のlive順序へ合わせた上でplanを再作成する
