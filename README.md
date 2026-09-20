@@ -111,27 +111,14 @@ cd ../..
    docker compose --env-file .env --env-file secrets/konnect/compose.env config --quiet
    docker compose --env-file .env --env-file secrets/konnect/compose.env up -d
    ```
-3. Terraform outputとKonnect接続情報から、decKが使う環境変数を設定する:
+3. Azure/Entra ID側のTerraform applyで生成されるlocal secretを読み込み、Konnect接続情報を設定する。`secrets/deck.env`はmode `0600`で生成され、session secretを含むためcommitしない:
    ```bash
-   export DECK_KONNECT_TOKEN='<personal-or-system-access-token>'
+   source secrets/deck.env
+   export DECK_KONNECT_TOKEN="${KONNECT_TOKEN:?KONNECT_TOKEN is required}"
    export DECK_KONNECT_ADDR='https://us.api.konghq.com'
    export DECK_KONNECT_CONTROL_PLANE_NAME='azure-obo-demo'
-
-   cd terraform
-   export DECK_ENTRA_ISSUER="https://login.microsoftonline.com/$(terraform output -raw entra_tenant_id)/v2.0"
-   export DECK_MIDDLE_TIER_CLIENT_ID=$(terraform output -raw middle_tier_client_id)
-   export DECK_MIDDLE_TIER_CLIENT_SECRET=$(terraform output -raw middle_tier_client_secret)
-   export DECK_DOWNSTREAM_API_APPLICATION_ID_URI=$(terraform output -raw downstream_api_application_id_uri)
-   export DECK_GROUP_API_CUSTOMER_INQUIRY_OBJECT_ID=$(terraform output -raw group_api_customer_inquiry_object_id)
-   export DECK_GROUP_API_CUSTOMER_DETAILS_OBJECT_ID=$(terraform output -raw group_api_customer_details_object_id)
-   export DECK_AZURE_OPENAI_API_KEY=$(terraform output -raw azure_openai_api_key)
-   export DECK_AZURE_OPENAI_DEPLOYMENT_NAME=$(terraform output -raw azure_openai_deployment_name)
-   export DECK_AZURE_OPENAI_INSTANCE_NAME=kong-obo-demo-openai
-   # Kongのセッションcookie署名用シークレット（decK専用の値、Terraform outputではない）。
-   # 再syncのたびに値を変えると既存セッションが無効化されるため、.env等に一度保存して使い回すこと
-   export DECK_SESSION_SECRET=$(openssl rand -base64 32)
-   cd ..
    ```
+   `DECK_SESSION_SECRET`は`random_password.deck_session_secret`としてTerraform stateで安定管理する。明示的にresourceを再作成しない限り再applyでローテーションされない。`KONNECT_TOKEN`は短命な実行時資格情報としてファイルへ保存しない。
 4. ローカルでの構文検証（Kongへの接続不要）: `deck file validate kong/login-route.yaml kong/mcp-route.yaml kong/llm-route.yaml`
 5. 対象Control Planeに対するonline validationと差分確認:
    ```bash
